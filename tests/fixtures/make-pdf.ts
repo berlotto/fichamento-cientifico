@@ -15,7 +15,7 @@ function content(page: FakePage): string {
   return ops.join("\n");
 }
 
-export function makePdf(pages: FakePage[]): Uint8Array {
+export function makePdf(pages: FakePage[]): Uint8Array<ArrayBuffer> {
   const objects: string[] = [];
   const add = (body: string) => objects.push(body) - 1 + 1; // número do objeto (1-based)
 
@@ -47,11 +47,11 @@ export function makePdf(pages: FakePage[]): Uint8Array {
   out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   out += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
   out += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new Uint8Array(Buffer.from(out, "latin1"));
+  return Uint8Array.from(Buffer.from(out, "latin1"));
 }
 
 /** Artigo de 5 páginas: capa sem número + 4 páginas numeradas 215–218. */
-export function sampleArticlePdf(): Uint8Array {
+export function sampleArticlePdf(): Uint8Array<ArrayBuffer> {
   const body = (n: number) =>
     Array.from({ length: 30 }, (_, i) => `Body text line ${i + 1} of section ${n}. We enrolled 120 participants.`);
   return makePdf([
