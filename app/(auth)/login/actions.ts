@@ -30,7 +30,14 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
     password,
     options: { data: fullName ? { full_name: fullName } : {} },
   });
-  if (error) return { error: error.message };
+  // Mensagem genérica: não revela se o e-mail já tem conta.
+  if (error) {
+    return {
+      error: /password/i.test(error.message)
+        ? "Senha fraca ou já vazada em outro site. Escolha outra."
+        : "Não foi possível criar a conta.",
+    };
+  }
   if (!data.session) {
     return { message: "Conta criada. Confirme pelo link enviado ao seu e-mail." };
   }

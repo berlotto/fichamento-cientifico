@@ -103,13 +103,7 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "owns_article":
-{ Args: { "a": string }; Returns: boolean
-                           },
-"owns_project":
-{ Args: { "p": string }; Returns: boolean
-                           },
-"queue_archive":
+            "queue_archive":
 { Args: { "msg_id": number }; Returns: boolean
                            },
 "queue_read":

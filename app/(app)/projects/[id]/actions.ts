@@ -23,6 +23,14 @@ export async function importFromUrl(_: ImportUrlState, formData: FormData): Prom
   const { data: project } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle();
   if (!project) return { error: "Projeto não encontrado." };
 
+  // Mesmo limite do banco (100/dia), checado antes de baixar: o download também tem custo.
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count } = await supabase
+    .from("articles")
+    .select("id", { count: "exact", head: true })
+    .gt("created_at", since);
+  if ((count ?? 0) >= 100) return { error: "Limite de 100 artigos por dia atingido. Tente novamente amanhã." };
+
   let pdf;
   try {
     pdf = await fetchPdf(url);
@@ -37,7 +45,7 @@ export async function importFromUrl(_: ImportUrlState, formData: FormData): Prom
     .upload(path, pdf.bytes, { contentType: "application/pdf", upsert: false });
   // Mesmo PDF já enviado antes (outro projeto): reaproveita o arquivo.
   if (up.error && !/already exists|duplicate/i.test(up.error.message)) {
-    return { error: `Falha ao gravar o PDF: ${up.error.message}` };
+    return { error: "Falha ao gravar o PDF." };
   }
 
   const ins = await supabase.from("articles").insert({
@@ -48,7 +56,8 @@ export async function importFromUrl(_: ImportUrlState, formData: FormData): Prom
     source_url: url,
   });
   if (ins.error?.code === "23505") return { error: "Este artigo já está no projeto." };
-  if (ins.error) return { error: `Falha ao registrar o artigo: ${ins.error.message}` };
+  if (ins.error?.code === "P0001") return { error: ins.error.message };
+  if (ins.error) return { error: "Falha ao registrar o artigo." };
 
   return { ok: true, filename: pdf.filename };
 }
