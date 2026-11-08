@@ -14,6 +14,7 @@ export async function createProject(
 
   const supabase = await createClient();
   const { data, error } = await supabase.from("projects").insert({ name }).select("id").single();
+  if (error?.code === "P0001") return { error: error.message };
   if (error || !data) return { error: "Não foi possível criar o projeto." };
 
   redirect(`/projects/${data.id}`);
