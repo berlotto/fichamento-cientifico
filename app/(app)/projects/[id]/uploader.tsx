@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PlusIcon } from "@/components/icons";
 import { pdfStoragePath, sha256Hex } from "@/lib/sha256";
 import { createClient } from "@/lib/supabase/client";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
-type Line = { name: string; status: "enviando" | "ok" | "duplicado" | "erro"; detail?: string };
+type Line = { name: string; status: "enviando" | "enviado" | "duplicado" | "erro"; detail?: string };
 
 function alreadyExists(error: unknown): boolean {
   const e = error as { statusCode?: string; status?: number; message?: string };
@@ -15,8 +16,8 @@ function alreadyExists(error: unknown): boolean {
 }
 
 /**
- * Upload direto para o Supabase Storage (não passa pela Function da Vercel).
- * Depois insere o artigo; um trigger no banco enfileira o parse.
+ * Botão "Adicionar artigo". Upload direto para o Supabase Storage (não passa pela
+ * Function da Vercel); depois insere o artigo e um trigger no banco enfileira o parse.
  */
 export function Uploader({ projectId, userId }: { projectId: string; userId: string }) {
   const router = useRouter();
@@ -56,7 +57,7 @@ export function Uploader({ projectId, userId }: { projectId: string; userId: str
       return update(file.name, { status: "duplicado", detail: "já está neste projeto" });
     }
     if (ins.error) return update(file.name, { status: "erro", detail: ins.error.message });
-    update(file.name, { status: "ok" });
+    update(file.name, { status: "enviado" });
   }
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -78,37 +79,44 @@ export function Uploader({ projectId, userId }: { projectId: string; userId: str
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="flex w-fit cursor-pointer items-center gap-2 rounded bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-100 dark:text-zinc-900">
-        {busy ? "Enviando…" : "Enviar PDFs"}
+    <>
+      <label
+        className={`btn btn-primary px-3 ${busy ? "cursor-default opacity-65" : "cursor-pointer"}`}
+        aria-label="Adicionar artigo"
+        title="Adicionar artigo (PDF)"
+      >
+        <PlusIcon />
         <input
           type="file"
           accept="application/pdf"
           multiple
           disabled={busy}
           onChange={onChange}
-          className="hidden"
+          className="sr-only"
         />
       </label>
+
       {lines.length > 0 && (
-        <ul className="text-sm">
+        <div
+          aria-live="polite"
+          className="absolute top-full right-0 left-0 z-10 mt-2 flex flex-col gap-1 rounded-lg border border-line bg-surface p-3 text-sm shadow-lg"
+        >
           {lines.map((l) => (
-            <li
-              key={l.name}
-              className={
-                l.status === "erro"
-                  ? "text-red-600"
-                  : l.status === "duplicado"
-                    ? "text-amber-600"
-                    : "text-zinc-600 dark:text-zinc-400"
-              }
-            >
-              {l.name}: {l.status}
-              {l.detail ? ` (${l.detail})` : ""}
-            </li>
+            <div key={l.name} className="flex justify-between gap-3">
+              <span className="min-w-0 truncate">{l.name}</span>
+              <span className={l.status === "erro" || l.status === "duplicado" ? "text-warn" : "text-muted"}>
+                {l.status}
+                {l.detail ? ` (${l.detail})` : ""}
+              </span>
+            </div>
           ))}
-        </ul>
+          {!busy && (
+            <button type="button" className="mt-1 self-end text-[13px] text-muted underline" onClick={() => setLines([])}>
+              Fechar
+            </button>
+          )}
+        </div>
       )}
-    </div>
+    </>
   );
 }

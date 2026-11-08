@@ -45,14 +45,14 @@ isOneToOne: false
                   ]
                 },"articles": {
                   Row: {
-                    "authors": Json | null,"citekey": string | null,"created_at": string,"doi": string | null,"error": string | null,"id": string,"metadata_source": string | null,"original_filename": string | null,"page_count": number | null,"project_id": string,"sha256": string,"status": string,"storage_path": string,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"year": number | null,"zotero_key": string | null
+                    "authors": Json | null,"citekey": string | null,"created_at": string,"doi": string | null,"error": string | null,"id": string,"metadata_source": string | null,"notes": string | null,"original_filename": string | null,"page_count": number | null,"project_id": string,"sha256": string,"status": string,"storage_path": string,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"year": number | null,"zotero_key": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"metadata_source"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"project_id": string,"sha256": string,"status"?: string,"storage_path": string,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"project_id": string,"sha256": string,"status"?: string,"storage_path": string,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Update: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"metadata_source"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"project_id"?: string,"sha256"?: string,"status"?: string,"storage_path"?: string,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"project_id"?: string,"sha256"?: string,"status"?: string,"storage_path"?: string,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Relationships: [
                     {
