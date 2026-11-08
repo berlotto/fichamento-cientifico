@@ -1,96 +1,84 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { STATUS_LABEL } from "@/lib/article-status";
+import { CopyButton } from "@/components/copy-button";
+import { BackIcon, FileIcon } from "@/components/icons";
+import { articleStatus, TONE_CLASS } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
+import { abntReference, authorLine } from "@/lib/citation";
 import { createClient } from "@/lib/supabase/server";
+import { NotesField } from "./notes-field";
 
 type Props = PageProps<"/projects/[id]/articles/[articleId]">;
 
-/**
- * F0.9: PDF ao lado do texto extraído da página. O PDF usa o visualizador do
- * navegador; o PDF.js com destaque da citação entra na F1.7 (revisão).
- */
-async function ArticleView({ params, searchParams }: Pick<Props, "params" | "searchParams">) {
+async function Ficha({ params }: Pick<Props, "params">) {
   const { id, articleId } = await params;
-  const { p } = await searchParams;
   await requireUser();
   const supabase = await createClient();
 
-  const { data: article } = await supabase
+  const { data: a } = await supabase
     .from("articles")
-    .select("id, project_id, title, original_filename, storage_path, status, page_count, error")
+    .select("id, title, original_filename, authors, year, venue, status, page_count, error, notes")
     .eq("id", articleId)
     .eq("project_id", id)
     .maybeSingle();
-  if (!article) notFound();
+  if (!a) notFound();
 
-  const pageCount = article.page_count ?? 0;
-  const requested = Number(Array.isArray(p) ? p[0] : p);
-  const page = Number.isInteger(requested) && requested >= 1 && requested <= pageCount ? requested : 1;
-
-  const [{ data: signed }, { data: pageRow }] = await Promise.all([
-    supabase.storage.from("pdfs").createSignedUrl(article.storage_path, 60 * 60),
-    supabase
-      .from("article_pages")
-      .select("pdf_page, printed_page, text")
-      .eq("article_id", articleId)
-      .eq("pdf_page", page)
-      .maybeSingle(),
-  ]);
-
-  const base = `/projects/${id}/articles/${articleId}`;
+  const status = articleStatus(a.status);
+  const meta = [authorLine(a), a.venue, a.year].filter(Boolean).join(" · ");
+  const abnt = abntReference(a);
 
   return (
-    <div className="flex flex-1 flex-col gap-3 p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <Link href={`/projects/${id}`} className="text-sm text-zinc-500 underline">
-            ← Projeto
+    <div data-pane="detail" className="mx-auto flex w-full max-w-[760px] flex-col gap-8 px-8 pt-5 pb-14 max-[860px]:px-5">
+      <header className="flex flex-col gap-4">
+        <div className="flex min-h-11 items-center justify-between">
+          <Link href={`/projects/${id}`} className="icon-btn fx-back -ml-3" aria-label="Voltar aos artigos">
+            <BackIcon />
           </Link>
-          <h1 className="text-lg font-semibold">{article.title ?? article.original_filename}</h1>
+          <span className={`ml-auto text-xs font-medium ${TONE_CLASS[status.tone]}`}>{status.label}</span>
         </div>
-        <span className="text-sm text-zinc-500">
-          {STATUS_LABEL[article.status] ?? article.status}
-          {article.error ? `: ${article.error}` : ""}
-        </span>
-      </div>
+        <h1 className="m-0 font-serif text-[32px] leading-[1.18] font-normal tracking-[-0.01em] text-pretty">
+          {a.title ?? a.original_filename ?? "Sem título"}
+        </h1>
+        <div className="text-sm text-muted">
+          {meta || "Autores, periódico e ano aparecem quando os metadados forem identificados."}
+        </div>
+        {a.error && <p className="m-0 text-sm text-warn">{a.error}</p>}
+      </header>
 
-      {pageCount > 0 && (
-        <nav className="flex items-center gap-3 text-sm">
-          {page > 1 ? <Link href={`${base}?p=${page - 1}`} className="underline">← anterior</Link> : <span className="text-zinc-400">← anterior</span>}
-          <span>
-            PDF {page}/{pageCount}
-            {" · "}
-            página impressa: {pageRow?.printed_page ?? "não identificada"}
-          </span>
-          {page < pageCount ? <Link href={`${base}?p=${page + 1}`} className="underline">próxima →</Link> : <span className="text-zinc-400">próxima →</span>}
-        </nav>
-      )}
+      <section className="flex flex-col gap-3 rounded-lg bg-page p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="eyebrow">Referência ABNT</h2>
+          {abnt && <CopyButton text={abnt} />}
+        </div>
+        <p className={`m-0 text-sm leading-[1.55] ${abnt ? "" : "text-muted"}`}>
+          {abnt ?? "A referência é montada quando autor, título e ano estiverem identificados."}
+        </p>
+      </section>
 
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
-        {signed?.signedUrl ? (
-          <iframe
-            key={page}
-            src={`${signed.signedUrl}#page=${page}`}
-            title="PDF"
-            className="min-h-[75vh] w-full rounded border border-zinc-200 dark:border-zinc-800"
-          />
-        ) : (
-          <p className="text-red-600">Não foi possível abrir o PDF.</p>
-        )}
-        <pre className="min-h-[75vh] overflow-auto whitespace-pre-wrap rounded border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-800 dark:bg-zinc-950">
-          {pageRow?.text ?? (pageCount ? "Página sem texto." : "Texto ainda não extraído.")}
-        </pre>
-      </div>
+      <section className="flex flex-col gap-3">
+        <h2 className="eyebrow">Ficha</h2>
+        <p className="m-0 font-serif text-lg leading-normal text-muted">
+          Objetivo, método, resultados e conclusões aparecem aqui depois da extração, cada um com a
+          citação e a página.
+        </p>
+        {a.page_count ? (
+          <Link href={`/viewer/${a.id}`} className="btn w-fit">
+            <FileIcon />
+            Abrir PDF e texto extraído ({a.page_count} páginas)
+          </Link>
+        ) : null}
+      </section>
+
+      <NotesField articleId={a.id} initial={a.notes ?? ""} />
     </div>
   );
 }
 
 export default function ArticlePage(props: Props) {
   return (
-    <Suspense fallback={<p className="p-6 text-zinc-500">Carregando…</p>}>
-      <ArticleView params={props.params} searchParams={props.searchParams} />
+    <Suspense fallback={<p data-pane="detail" className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+      <Ficha params={props.params} />
     </Suspense>
   );
 }

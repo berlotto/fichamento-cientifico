@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Tokens do design "Fichamento de artigos" (canvas). Tema: data-theme no <html>;
+   sem escolha salva, segue o sistema. */
+:root,
+:root[data-theme="light"] {
+  --page: #f6f7f6;
+  --surface: #ffffff;
+  --sunk: #eceeec;
+  --ink: #1a2320;
+  --muted: #5a6661;
+  --line: #e0e4e1;
+  --accent: #0e6a5b;
+  --on-accent: #ffffff;
+  --tint: #e2f0ec;
+  --warn: #8a5300;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme]) {
+    --page: #101413;
+    --surface: #171c1a;
+    --sunk: #1f2623;
+    --ink: #e8edea;
+    --muted: #a0aca7;
+    --line: #2a322f;
+    --accent: #63d2ba;
+    --on-accent: #0b2019;
+    --tint: #1c3530;
+    --warn: #eab765;
+    color-scheme: dark;
   }
 }
 
+:root[data-theme="dark"] {
+  --page: #101413;
+  --surface: #171c1a;
+  --sunk: #1f2623;
+  --ink: #e8edea;
+  --muted: #a0aca7;
+  --line: #2a322f;
+  --accent: #63d2ba;
+  --on-accent: #0b2019;
+  --tint: #1c3530;
+  --warn: #eab765;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunk: var(--sunk);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-tint: var(--tint);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Botões e campos do design */
+@layer components {
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-medium hover:border-muted disabled:cursor-default disabled:opacity-65;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-on-accent hover:border-accent hover:brightness-110;
+  }
+  .icon-btn {
+    @apply inline-flex size-11 flex-none items-center justify-center rounded-lg text-muted hover:bg-sunk hover:text-ink;
+  }
+  .field {
+    @apply min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[15px] placeholder:text-muted focus:border-accent focus:outline-none;
+  }
+  .label {
+    @apply text-[13px] font-medium;
+  }
+  .eyebrow {
+    @apply m-0 text-xs font-semibold text-muted;
+  }
+  .segmented {
+    @apply flex gap-1 rounded-lg bg-sunk p-1;
+  }
+  .segmented > button {
+    @apply min-h-11 flex-1 cursor-pointer rounded-md text-sm font-medium text-muted;
+  }
+  .segmented > button[aria-pressed="true"] {
+    @apply bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,.12)];
+  }
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Shell de três colunas: projetos | artigos | ficha.
+   No celular mostra uma coluna por vez, decidida pelas marcas data-pane
+   que as rotas filhas renderizam (sem JS). */
+.fx-shell {
+  display: grid;
+  grid-template-columns: 256px 368px minmax(0, 1fr);
+  height: 100dvh;
+}
+.fx-pane {
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+.fx-back {
+  display: none;
+}
+
+@media (max-width: 1160px) {
+  .fx-shell {
+    grid-template-columns: 216px 300px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .fx-shell {
+    display: block;
+  }
+  .fx-shell > .fx-pane {
+    display: none;
+    border-right: 0;
+  }
+  .fx-shell > .fx-side {
+    display: flex;
+  }
+  .fx-shell:has([data-pane="articles"]) > .fx-side {
+    display: none;
+  }
+  .fx-shell:has([data-pane="articles"]) > .fx-list {
+    display: flex;
+  }
+  .fx-shell:has([data-pane="detail"]) > .fx-list {
+    display: none;
+  }
+  .fx-shell:has([data-pane="detail"]) > .fx-detail {
+    display: block;
+  }
+  .fx-back {
+    display: inline-flex;
+  }
 }

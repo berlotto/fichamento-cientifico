@@ -1,18 +1,27 @@
-export const STATUS_LABEL: Record<string, string> = {
-  uploaded: "na fila",
-  parsed: "texto extraído",
-  needs_ocr: "precisa de OCR",
-  extracted: "extraído",
-  verified: "verificado",
-  needs_review: "revisar",
-  failed: "falhou",
+/**
+ * Status do artigo no vocabulário do design: "ok" (accent), "rev" (atenção),
+ * "wait" (neutro, o pipeline ainda vai mexer).
+ */
+export type StatusTone = "ok" | "rev" | "wait";
+
+const STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  uploaded: { label: "Na fila", tone: "wait" },
+  parsed: { label: "Texto extraído", tone: "wait" },
+  extracted: { label: "Extraído", tone: "wait" },
+  verified: { label: "Validado", tone: "ok" },
+  needs_review: { label: "Em revisão", tone: "rev" },
+  needs_ocr: { label: "Precisa de OCR", tone: "rev" },
+  failed: { label: "Falhou", tone: "rev" },
 };
 
-export const STATUS_CLASS: Record<string, string> = {
-  uploaded: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  parsed: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  needs_ocr: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  failed: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+export function articleStatus(status: string) {
+  return STATUS[status] ?? { label: status, tone: "wait" as const };
+}
+
+export const TONE_CLASS: Record<StatusTone, string> = {
+  ok: "text-accent",
+  rev: "text-warn",
+  wait: "text-muted",
 };
 
 /** Status em que o pipeline ainda vai mexer sozinho. */

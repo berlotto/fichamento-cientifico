@@ -21,10 +21,15 @@ export async function signIn(_: AuthState, formData: FormData): Promise<AuthStat
 
 export async function signUp(_: AuthState, formData: FormData): Promise<AuthState> {
   const { email, password } = credentials(formData);
+  const fullName = String(formData.get("name") ?? "").trim();
   if (password.length < 8) return { error: "A senha precisa ter ao menos 8 caracteres." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: fullName ? { full_name: fullName } : {} },
+  });
   if (error) return { error: error.message };
   if (!data.session) {
     return { message: "Conta criada. Confirme pelo link enviado ao seu e-mail." };
