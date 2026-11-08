@@ -44,3 +44,6 @@ next-env.d.ts
 # supabase
 supabase/.temp/
 supabase/.branches/
+
+# PDFs de teste de terceiros (direitos autorais): não versionar
+artigo-exemplo/

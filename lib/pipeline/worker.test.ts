@@ -32,10 +32,14 @@ function fakeQueue(initial: unknown[]) {
   return { queue, msgs, newTick: () => (reads = 0) };
 }
 
-function deps(queue: Queue, parse: (m: PipelineMessage) => Promise<void>) {
+function deps(
+  queue: Queue,
+  parse: (m: PipelineMessage) => Promise<void>,
+  extract: (m: PipelineMessage) => Promise<void> = async () => {},
+) {
   return {
     queue,
-    handlers: { parse },
+    handlers: { parse, extract },
     markFailed: vi.fn(async () => {}),
     recordError: vi.fn(async () => {}),
   };
@@ -86,5 +90,29 @@ describe("runWorker", () => {
     const r = await runWorker({ ...deps(q.queue, parse), now: () => 0 }, 0);
     expect(parse).not.toHaveBeenCalled();
     expect(r.processed).toBe(0);
+  });
+
+  it("encaminha extract ao handler certo", async () => {
+    const q = fakeQueue([{ article_id: ARTICLE, stage: "extract" }]);
+    const parse = vi.fn(async () => {});
+    const extract = vi.fn(async () => {});
+    const r = await runWorker(deps(q.queue, parse, extract), 1000);
+    expect(extract).toHaveBeenCalledWith({ article_id: ARTICLE, stage: "extract" });
+    expect(parse).not.toHaveBeenCalled();
+    expect(r.processed).toBe(1);
+  });
+
+  it("não começa estágio novo depois do prazo, mesmo no meio do lote", async () => {
+    const q = fakeQueue([
+      { article_id: ARTICLE, stage: "extract" },
+      { article_id: ARTICLE, stage: "extract" },
+    ]);
+    let t = 0;
+    const extract = vi.fn(async () => {
+      t = 2000; // o primeiro estágio estoura o orçamento
+    });
+    const r = await runWorker({ ...deps(q.queue, vi.fn(), extract), now: () => t }, 1000);
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(r.processed).toBe(1);
   });
 });

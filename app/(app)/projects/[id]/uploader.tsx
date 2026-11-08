@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { PlusIcon } from "@/components/icons";
+import { useActionState, useEffect, useState } from "react";
+import { FileIcon, LinkIcon, PlusIcon } from "@/components/icons";
 import { pdfStoragePath, sha256Hex } from "@/lib/sha256";
 import { createClient } from "@/lib/supabase/client";
+import { importFromUrl, type ImportUrlState } from "./actions";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -16,13 +17,21 @@ function alreadyExists(error: unknown): boolean {
 }
 
 /**
- * Botão "Adicionar artigo". Upload direto para o Supabase Storage (não passa pela
- * Function da Vercel); depois insere o artigo e um trigger no banco enfileira o parse.
+ * Botão "Adicionar artigo": abre um painel para enviar PDFs do computador ou
+ * importar por link. O upload vai direto para o Supabase Storage (não passa
+ * pela Function da Vercel); o link é baixado no servidor. Nos dois casos o
+ * insert do artigo dispara o pipeline (parse → extração).
  */
 export function Uploader({ projectId, userId }: { projectId: string; userId: string }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
+  const [urlState, urlAction, urlPending] = useActionState<ImportUrlState, FormData>(importFromUrl, {});
+
+  useEffect(() => {
+    if (urlState.ok) router.refresh();
+  }, [urlState, router]);
 
   const update = (name: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.name === name ? { ...l, ...patch } : l)));
@@ -80,41 +89,84 @@ export function Uploader({ projectId, userId }: { projectId: string; userId: str
 
   return (
     <>
-      <label
-        className={`btn btn-primary px-3 ${busy ? "cursor-default opacity-65" : "cursor-pointer"}`}
+      <button
+        type="button"
+        className="btn btn-primary px-3"
         aria-label="Adicionar artigo"
-        title="Adicionar artigo (PDF)"
+        aria-expanded={open}
+        title="Adicionar artigo"
+        onClick={() => setOpen(!open)}
       >
         <PlusIcon />
-        <input
-          type="file"
-          accept="application/pdf"
-          multiple
-          disabled={busy}
-          onChange={onChange}
-          className="sr-only"
-        />
-      </label>
+      </button>
 
-      {lines.length > 0 && (
+      {open && (
         <div
-          aria-live="polite"
-          className="absolute top-full right-0 left-0 z-10 mt-2 flex flex-col gap-1 rounded-lg border border-line bg-surface p-3 text-sm shadow-lg"
+          className="absolute top-full right-0 left-0 z-10 mt-2 flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 text-sm shadow-lg"
+          onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
         >
-          {lines.map((l) => (
-            <div key={l.name} className="flex justify-between gap-3">
-              <span className="min-w-0 truncate">{l.name}</span>
-              <span className={l.status === "erro" || l.status === "duplicado" ? "text-warn" : "text-muted"}>
-                {l.status}
-                {l.detail ? ` (${l.detail})` : ""}
-              </span>
+          <div className="flex flex-col gap-2">
+            <span className="label">Do computador</span>
+            <label className={`btn justify-center ${busy ? "cursor-default opacity-65" : "cursor-pointer"}`}>
+              <FileIcon />
+              {busy ? "Enviando…" : "Escolher PDFs"}
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                disabled={busy}
+                onChange={onChange}
+                className="sr-only"
+              />
+            </label>
+            {lines.length > 0 && (
+              <div aria-live="polite" className="flex flex-col gap-1">
+                {lines.map((l) => (
+                  <div key={l.name} className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">{l.name}</span>
+                    <span className={l.status === "erro" || l.status === "duplicado" ? "text-warn" : "text-muted"}>
+                      {l.status}
+                      {l.detail ? ` (${l.detail})` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <form action={urlAction} className="flex flex-col gap-2 border-t border-line pt-4">
+            <label htmlFor="fx-import-url" className="label">
+              Por link
+            </label>
+            <input type="hidden" name="projectId" value={projectId} />
+            <div className="flex gap-2">
+              <input
+                id="fx-import-url"
+                name="url"
+                type="url"
+                inputMode="url"
+                required
+                placeholder="https://…"
+                className="field min-w-0 flex-1"
+              />
+              <button type="submit" className="btn btn-primary" disabled={urlPending} aria-label="Importar link">
+                <LinkIcon />
+                {urlPending ? "Baixando…" : "Importar"}
+              </button>
             </div>
-          ))}
-          {!busy && (
-            <button type="button" className="mt-1 self-end text-[13px] text-muted underline" onClick={() => setLines([])}>
-              Fechar
-            </button>
-          )}
+            <p aria-live="polite" className={`m-0 text-[13px] ${urlState.error ? "text-warn" : "text-muted"}`}>
+              {urlPending
+                ? "Baixando o PDF…"
+                : urlState.error ??
+                  (urlState.ok
+                    ? `Importado: ${urlState.filename}`
+                    : "Funciona com o link direto do PDF ou com a página do artigo na editora.")}
+            </p>
+          </form>
+
+          <button type="button" className="self-end text-[13px] text-muted underline" onClick={() => setOpen(false)}>
+            Fechar
+          </button>
         </div>
       )}
     </>

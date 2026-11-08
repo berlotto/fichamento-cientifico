@@ -22,7 +22,20 @@ export const PlusIcon = ({ size = 18 }: P) => (
   </svg>
 );
 
-export const BackIcon = ({ size = 20 }: P) => (
+export const LinkIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.7} {...base}>
+    <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />
+    <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
+  </svg>
+);
+
+export const CheckIcon = ({ size = 14 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <path d="M5 12.5 10 17.5 19 7" />
+  </svg>
+);
+
+export const BackIcon =({ size = 20 }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.6} {...base}>
     <path d="M15 5l-7 7 7 7" />
   </svg>

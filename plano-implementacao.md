@@ -19,6 +19,19 @@ Convenção: cada tarefa tem **entregável** e **pronto quando**. Uma fase só c
 | F0.9 Visualizador | Feito com o visualizador de PDF do navegador (iframe). PDF.js com destaque fica para a F1.7, onde é necessário |
 | A11 Limpeza de PDFs | Pendente: excluir artigo não apaga o arquivo do Storage |
 
+### F1 (2026-11-09), versão simplificada
+
+Em vez do template de campos editável (F1.1) e das tabelas `extractions`/`verdicts`/`cells`, a primeira versão usa um conjunto fixo de campos numa tabela só, `article_fields`. O template editável continua no plano.
+
+| Tarefa | Situação |
+|---|---|
+| F1.2 Metadados | Feito. DOI das 2 primeiras páginas → Crossref; sem DOI, busca por título exigindo também primeiro autor e ano (±1). O LLM só preenche o que o Crossref não traz. Novos campos: subtítulo, língua, volume, número, páginas (ou número do artigo) |
+| F1.3/F1.4 Extração | Feito. Estágio `extract` depois do `parse`, uma chamada ao LLM com `<<PAGE n>>`: metadados + resumo (copiado do autor quando existe), assunto, objetivo, método, resultados, conclusões, cada um com trecho e página. Modelo por `EXTRACT_MODEL` |
+| F1.5 Verificação | Feito com `verify.ts`: trecho localizado no PDF e números do valor presentes no trecho. Artigo fica `extracted` se tudo confere, senão `needs_review` |
+| F1.9 Referências | ABNT, APA 7, Vancouver e BibTeX montadas por código (`lib/citation.ts`) |
+| Importar por URL | Feito. Link direto do PDF ou página do artigo (`citation_pdf_url`); bloqueio de IP interno, 50 MB, 30 s |
+| Pendente | Revisão/edição dos campos (F1.7), matriz (F1.8), export CSV/xlsx, `llm_runs` (custo por artigo), gold set (F1.10) |
+
 ---
 
 ## 0. Ajustes na arquitetura antes de codar

@@ -6,10 +6,10 @@ export type StatusTone = "ok" | "rev" | "wait";
 
 const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   uploaded: { label: "Na fila", tone: "wait" },
-  parsed: { label: "Texto extraído", tone: "wait" },
-  extracted: { label: "Extraído", tone: "wait" },
+  parsed: { label: "Lendo o artigo", tone: "wait" },
+  extracted: { label: "Trechos conferidos", tone: "ok" },
   verified: { label: "Validado", tone: "ok" },
-  needs_review: { label: "Em revisão", tone: "rev" },
+  needs_review: { label: "Revisar trechos", tone: "rev" },
   needs_ocr: { label: "Precisa de OCR", tone: "rev" },
   failed: { label: "Falhou", tone: "rev" },
 };
@@ -25,4 +25,4 @@ export const TONE_CLASS: Record<StatusTone, string> = {
 };
 
 /** Status em que o pipeline ainda vai mexer sozinho. */
-export const IN_PROGRESS = new Set(["uploaded"]);
+export const IN_PROGRESS = new Set(["uploaded", "parsed"]);
