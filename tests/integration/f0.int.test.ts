@@ -99,9 +99,16 @@ describe("F0", () => {
     expect(error).not.toBeNull();
   });
 
-  it("o worker processa o parse enfileirado pelo trigger", async () => {
-    const result = await runWorker(supabaseWorkerDeps(admin), 30_000);
-    expect(result.processed).toBeGreaterThanOrEqual(1);
+  it("o worker processa o parse enfileirado pelo trigger e enfileira a extração", async () => {
+    // A extração chama o LLM (AI Gateway): aqui só verificamos que o parse a enfileirou.
+    const deps = supabaseWorkerDeps(admin);
+    const extracted: string[] = [];
+    deps.handlers.extract = async (m) => {
+      extracted.push(m.article_id);
+    };
+    const result = await runWorker(deps, 30_000);
+    expect(result.processed).toBeGreaterThanOrEqual(2);
+    expect(extracted).toContain(articleId);
 
     const { data: article } = await A.client
       .from("articles")
