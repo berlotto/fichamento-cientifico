@@ -7,7 +7,8 @@
  * para poder testar.
  */
 
-export type Stage = "parse";
+export const STAGES = ["parse", "extract"] as const;
+export type Stage = (typeof STAGES)[number];
 
 export type PipelineMessage = { article_id: string; stage: Stage };
 
@@ -45,8 +46,8 @@ export function parseMessage(raw: unknown): PipelineMessage | null {
   if (!raw || typeof raw !== "object") return null;
   const { article_id, stage } = raw as Record<string, unknown>;
   if (typeof article_id !== "string" || !/^[0-9a-f-]{36}$/i.test(article_id)) return null;
-  if (stage !== "parse") return null;
-  return { article_id, stage };
+  if (!STAGES.includes(stage as Stage)) return null;
+  return { article_id, stage: stage as Stage };
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 2000);
@@ -62,6 +63,9 @@ export async function runWorker(deps: WorkerDeps, budgetMs: number): Promise<Wor
     if (batch.length === 0) break;
 
     for (const m of batch) {
+      // Sem tempo para mais um estágio (a extração leva minutos): a mensagem volta
+      // para a fila quando o visibility timeout expirar.
+      if (now() >= deadline) break;
       const msg = parseMessage(m.message);
       if (!msg) {
         log(`mensagem inválida ${m.msg_id}: arquivada`);
