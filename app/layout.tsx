@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { fontCss, fontInitScript } from "@/lib/fonts";
 import { themeInitScript } from "@/lib/theme";
 import { fontVariables } from "./fonts";
@@ -21,7 +22,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript + fontInitScript }} />
         <style dangerouslySetInnerHTML={{ __html: fontCss() }} />
       </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
