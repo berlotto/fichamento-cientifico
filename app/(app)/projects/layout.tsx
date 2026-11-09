@@ -7,6 +7,7 @@ import { validLanguage } from "@/lib/languages";
 import { validCitationStyle } from "@/lib/project-defaults";
 import { createClient } from "@/lib/supabase/server";
 import { NewProjectButton } from "./new-project-button";
+import { NavSkeleton } from "@/components/skeletons";
 import { ProjectNav } from "./project-nav";
 
 async function SidebarProjects() {
@@ -53,7 +54,7 @@ export default function ProjectsLayout({ children }: LayoutProps<"/projects">) {
           <NewProjectButton />
         </div>
         <div className="flex flex-1 flex-col gap-0.5">
-          <Suspense fallback={<p className="px-3 text-sm text-muted">Carregando…</p>}>
+          <Suspense fallback={<NavSkeleton />}>
             <SidebarProjects />
           </Suspense>
         </div>

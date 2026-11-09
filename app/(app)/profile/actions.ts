@@ -13,6 +13,7 @@ export async function saveFonts(ui: string, article: string): Promise<{ ok: bool
   const { error } = await supabase.auth.updateUser({
     data: { font_ui: validFont(ui, "ui"), font_article: validFont(article, "article") },
   });
+  if (!error) await supabase.auth.refreshSession();
   return { ok: !error };
 }
 
@@ -20,6 +21,7 @@ export async function saveFonts(ui: string, article: string): Promise<{ ok: bool
 export async function saveDefaultLanguage(code: string): Promise<{ ok: boolean }> {
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ data: { default_output_language: validLanguage(code) } });
+  if (!error) await supabase.auth.refreshSession();
   return { ok: !error };
 }
 
@@ -63,6 +65,7 @@ export async function saveAccount(fullName: string, institution: string): Promis
       institution: institution.trim().slice(0, 200) || null,
     },
   });
+  if (!error) await supabase.auth.refreshSession();
   return { ok: !error };
 }
 
@@ -92,6 +95,7 @@ export async function saveProjectDefaults(d: ProjectDefaults): Promise<{ ok: boo
       default_audit_rate: clean.auditRate,
     },
   });
+  if (!error) await supabase.auth.refreshSession();
   return { ok: !error };
 }
 

@@ -1,10 +1,11 @@
 import { Suspense } from "react";
+import { DetailSkeleton } from "@/components/skeletons";
 import { ProjectOverview } from "../project-overview";
 
 /** Visão do projeto como painel de detalhe (no celular, aberta pelo link na lista). */
 export default function ProjectAboutPage({ params }: PageProps<"/projects/[id]/about">) {
   return (
-    <Suspense fallback={<p data-pane="detail" className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+    <Suspense fallback={<DetailSkeleton />}>
       <Overview params={params} />
     </Suspense>
   );

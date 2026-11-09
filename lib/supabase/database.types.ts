@@ -192,6 +192,9 @@ isOneToOne: false
 "my_usage":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"project_stats":
+{ Args: { "p_project": string }; Returns: Json
+                           },
 "queue_archive":
 { Args: { "msg_id": number }; Returns: boolean
                            },

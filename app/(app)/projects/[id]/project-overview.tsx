@@ -9,6 +9,39 @@ import { createClient } from "@/lib/supabase/server";
 import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
 
 const REF_LABEL = { abnt: "ABNT", apa: "APA", vancouver: "Vancouver" } as const;
+type QualityRow = {
+  key: string;
+  total: number;
+  reviewed: number;
+  as_is: number;
+  auto: number;
+  checked: number;
+  agree: number;
+  audited: number;
+  audit_wrong: number;
+  edited: number;
+  rejected: number;
+  verified: number;
+};
+type ProjectStats = {
+  total: number;
+  extracted: number;
+  reviewed: number;
+  cost: number | string;
+  costed_articles: number;
+  audit_queue: number;
+  quality: QualityRow[];
+};
+const EMPTY_STATS: ProjectStats = {
+  total: 0,
+  extracted: 0,
+  reviewed: 0,
+  cost: 0,
+  costed_articles: 0,
+  audit_queue: 0,
+  quality: [],
+};
+
 const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "—");
 
 /**
@@ -22,58 +55,49 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
   // BibTeX já tem botão próprio; a lista de referências usa a norma preferida (ABNT se for BibTeX).
   const refStyle = style === "bibtex" ? "abnt" : style;
 
-  const [{ data: project }, { data: articles }, { data: custom }, { data: fieldRows }, { data: runs }] =
-    await Promise.all([
-      supabase
-        .from("projects")
-        .select("id, name, output_language, cross_check, auto_approve, critical_fields, audit_rate")
-        .eq("id", projectId)
-        .maybeSingle(),
-      supabase.from("articles").select("id, status").eq("project_id", projectId),
-      supabase.from("project_fields").select("key, label, instructions").eq("project_id", projectId).order("position"),
-      supabase
-        .from("article_fields")
-        .select("key, status, edited, verified, agrees, auto_approved, audit_pending, audit_result, articles!inner(project_id)")
-        .eq("articles.project_id", projectId),
-      supabase
-        .from("llm_runs")
-        .select("article_id, cost_usd, articles!inner(project_id)")
-        .eq("articles.project_id", projectId),
-    ]);
+  const [{ data: project }, { data: custom }, { data: rawStats }] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name, output_language, cross_check, auto_approve, critical_fields, audit_rate")
+      .eq("id", projectId)
+      .maybeSingle(),
+    supabase.from("project_fields").select("key, label, instructions").eq("project_id", projectId).order("position"),
+    // Totais somados no banco (não traz as linhas de campos e custos).
+    supabase.rpc("project_stats", { p_project: projectId }),
+  ]);
   if (!project) notFound();
 
-  const total = articles?.length ?? 0;
-  const auditQueue = (fieldRows ?? []).filter((f) => f.audit_pending).length;
-  const reviewed = (articles ?? []).filter((a) => a.status === "verified").length;
-  const extracted = (articles ?? []).filter((a) =>
-    ["extracted", "needs_review", "verified", "failed"].includes(a.status),
-  ).length;
-  const cost = (runs ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
-  const costedArticles = new Set((runs ?? []).map((r) => r.article_id)).size;
+  const stats = (rawStats as ProjectStats | null) ?? EMPTY_STATS;
+  const total = stats.total;
+  const auditQueue = stats.audit_queue;
+  const reviewed = stats.reviewed;
+  const extracted = stats.extracted;
+  const cost = Number(stats.cost);
+  const costedArticles = stats.costed_articles;
 
   // Qualidade por campo, medida pelas suas revisões (o "gold set" sai da própria revisão).
   const defs = fieldDefs(custom ?? []);
-  const quality = defs
-    .map((d) => {
-      const rows = (fieldRows ?? []).filter((f) => f.key === d.key);
-      const done = rows.filter((f) => f.status !== "pending");
-      return {
+  const byKey = new Map(stats.quality.map((q) => [q.key, q]));
+  const quality = defs.flatMap((d) => {
+    const q = byKey.get(d.key);
+    if (!q || q.total === 0) return [];
+    return [
+      {
         label: d.label,
-        total: rows.length,
-        reviewed: done.length,
-        // Aprovação automática não conta como revisão humana.
-        asIs: done.filter((f) => f.status === "accepted" && !f.edited && !f.auto_approved).length,
-        auto: rows.filter((f) => f.auto_approved).length,
-        checked: rows.filter((f) => f.agrees != null).length,
-        agree: rows.filter((f) => f.agrees === true).length,
-        audited: rows.filter((f) => f.audit_result).length,
-        auditWrong: rows.filter((f) => f.audit_result === "incorrect").length,
-        edited: done.filter((f) => f.edited).length,
-        rejected: done.filter((f) => f.status === "rejected").length,
-        verified: rows.filter((f) => f.verified).length,
-      };
-    })
-    .filter((q) => q.total > 0);
+        total: q.total,
+        reviewed: q.reviewed,
+        asIs: q.as_is,
+        auto: q.auto,
+        checked: q.checked,
+        agree: q.agree,
+        audited: q.audited,
+        auditWrong: q.audit_wrong,
+        edited: q.edited,
+        rejected: q.rejected,
+        verified: q.verified,
+      },
+    ];
+  });
 
   const exportLink = (format: string, label: string) => (
     <a href={`/api/export/${projectId}?format=${format}`} className="btn min-h-9 px-3 text-[13px]" download>
