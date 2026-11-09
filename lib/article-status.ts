@@ -26,3 +26,11 @@ export const TONE_CLASS: Record<StatusTone, string> = {
 
 /** Status em que o pipeline ainda vai mexer sozinho. */
 export const IN_PROGRESS = new Set(["uploaded", "parsed"]);
+
+/** Assinatura dos status do projeto: muda quando algum artigo avança no pipeline. */
+export function statusSignature(rows: { id: string; status: string }[]): string {
+  return rows
+    .map((r) => `${r.id}:${r.status}`)
+    .sort()
+    .join(",");
+}

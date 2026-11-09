@@ -1,10 +1,11 @@
 import { Suspense } from "react";
+import { DetailSkeleton } from "@/components/skeletons";
 import { ProjectOverview } from "./project-overview";
 
 /** Projeto aberto, nenhum artigo escolhido: visão geral do projeto (no celular, a lista ocupa a tela). */
 export default function ProjectPage({ params }: PageProps<"/projects/[id]">) {
   return (
-    <Suspense fallback={<p className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+    <Suspense fallback={<DetailSkeleton pane={false} />}>
       <Overview params={params} />
     </Suspense>
   );

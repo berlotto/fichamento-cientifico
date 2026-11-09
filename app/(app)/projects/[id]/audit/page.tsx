@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { displayTitle, shortCite } from "@/lib/citation";
 import { BUILTIN_DEFINITIONS, fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
+import { DetailSkeleton } from "@/components/skeletons";
 import { AuditCard } from "./audit-card";
 
 type Props = PageProps<"/projects/[id]/audit">;
@@ -74,7 +75,7 @@ async function Audit({ params }: Pick<Props, "params">) {
 
 export default function AuditPage(props: Props) {
   return (
-    <Suspense fallback={<p data-pane="detail" className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+    <Suspense fallback={<DetailSkeleton />}>
       <Audit params={props.params} />
     </Suspense>
   );

@@ -10,6 +10,7 @@ import { fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleTools } from "./article-tools";
 import { FieldReview, type ReviewField } from "./field-review";
+import { DetailSkeleton } from "@/components/skeletons";
 import { NotesField } from "./notes-field";
 
 type Props = PageProps<"/projects/[id]/articles/[articleId]">;
@@ -231,7 +232,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
 
 export default function ArticlePage(props: Props) {
   return (
-    <Suspense fallback={<p data-pane="detail" className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+    <Suspense fallback={<DetailSkeleton />}>
       <Ficha params={props.params} />
     </Suspense>
   );

@@ -63,16 +63,21 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return { id: claims.sub, email: (claims.email as string | undefined) ?? null };
 }
 
-/** Perfil com metadados atuais (o JWT pode estar desatualizado logo após editar). */
+/**
+ * Perfil lido do JWT, verificado localmente (sem ida ao servidor de autenticação).
+ * As ações que alteram o perfil renovam a sessão para o JWT refletir a mudança.
+ */
 export async function requireProfile(): Promise<Profile> {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) redirect("/login");
-  const meta = data.user.user_metadata ?? {};
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) redirect("/login");
+  const meta = (claims.user_metadata as Record<string, unknown> | undefined) ?? {};
+  const app = (claims.app_metadata as Record<string, unknown> | undefined) ?? {};
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   return {
-    id: data.user.id,
-    email: data.user.email ?? null,
+    id: claims.sub,
+    email: (claims.email as string | undefined) ?? null,
     fullName: str(meta.full_name),
     institution: str(meta.institution),
     fontUi: str(meta.font_ui),
@@ -80,6 +85,6 @@ export async function requireProfile(): Promise<Profile> {
     defaultLanguage: str(meta.default_output_language),
     citationStyle: str(meta.citation_style),
     projectDefaults: projectDefaultsFrom(meta),
-    isAdmin: data.user.app_metadata?.role === "admin",
+    isAdmin: app.role === "admin",
   };
 }

@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BackIcon } from "@/components/icons";
-import { articleStatus, IN_PROGRESS } from "@/lib/article-status";
+import { articleStatus, IN_PROGRESS, statusSignature } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
 import { displayTitle, shortCite } from "@/lib/citation";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleList } from "./article-list";
 import { AutoRefresh } from "./auto-refresh";
+import { ListSkeleton } from "@/components/skeletons";
 import { Uploader } from "./uploader";
 
 async function ArticlesPane({ params }: { params: LayoutProps<"/projects/[id]">["params"] }) {
@@ -49,7 +50,11 @@ async function ArticlesPane({ params }: { params: LayoutProps<"/projects/[id]">[
           </Link>
         }
       />
-      <AutoRefresh active={(articles ?? []).some((a) => IN_PROGRESS.has(a.status))} />
+      <AutoRefresh
+        projectId={project.id}
+        signature={statusSignature(articles ?? [])}
+        active={(articles ?? []).some((a) => IN_PROGRESS.has(a.status))}
+      />
     </>
   );
 }
@@ -62,7 +67,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
         aria-label="Artigos do projeto"
         data-pane="articles"
       >
-        <Suspense fallback={<p className="m-0 px-5 py-6 text-sm text-muted">Carregando…</p>}>
+        <Suspense fallback={<ListSkeleton />}>
           <ArticlesPane params={params} />
         </Suspense>
       </section>
