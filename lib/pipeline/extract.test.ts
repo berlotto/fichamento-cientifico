@@ -95,3 +95,55 @@ describe("llmMetadata", () => {
     });
   });
 });
+
+describe("ficha em outro idioma", () => {
+  const en = [
+    { pdf_page: 1, printed_page: "1", text: "Abstract: We assessed the association between ozone and glaucoma in adults from southern Brazil." },
+    { pdf_page: 2, printed_page: "2", text: "Methods. Cohort study with 1,250 participants followed for 5 years in Porto Alegre." },
+  ];
+
+  it("resumo do autor traduzido: confere o original no PDF e guarda o original", () => {
+    const e = extraction(
+      { abstract: { value: "Avaliamos a associação entre ozônio e glaucoma em adultos do Sul do Brasil.", quote: null, pdf_page: 1 } },
+      true,
+    );
+    e.abstract_original = "We assessed the association between ozone and glaucoma in adults from southern Brazil.";
+    const [row] = buildFieldRows(e, en, "pt-BR");
+    expect(row).toMatchObject({
+      source: "author",
+      verified: true,
+      pdf_page: 1,
+      source_value: e.abstract_original,
+      language: "pt-BR",
+    });
+    expect(row.quote).toBe(e.abstract_original);
+  });
+
+  it("trecho original é conferido; a tradução fica ao lado; números com vírgula de milhar batem", () => {
+    const [row] = buildFieldRows(
+      extraction({
+        method: {
+          value: "Coorte com 1.250 participantes acompanhados por 5 anos em Porto Alegre.",
+          quote: "Cohort study with 1,250 participants followed for 5 years in Porto Alegre",
+          quote_translated: "Estudo de coorte com 1.250 participantes acompanhados por 5 anos em Porto Alegre",
+          pdf_page: 2,
+        },
+      }),
+      en,
+      "pt-BR",
+    );
+    expect(row).toMatchObject({ verified: true, pdf_page: 2, source_value: null });
+    expect(row.quote_translated).toMatch(/^Estudo de coorte/);
+  });
+
+  it("tradução igual ao trecho (artigo já no idioma da ficha) não é guardada", () => {
+    const quote = "Cohort study with 1,250 participants followed for 5 years in Porto Alegre";
+    const [row] = buildFieldRows(
+      extraction({ method: { value: "Cohort of 1,250 for 5 years.", quote, quote_translated: quote, pdf_page: 2 } }),
+      en,
+      "en",
+    );
+    expect(row.quote_translated).toBeNull();
+    expect(row.language).toBe("en");
+  });
+});

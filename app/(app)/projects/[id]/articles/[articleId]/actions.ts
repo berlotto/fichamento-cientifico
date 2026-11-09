@@ -63,6 +63,12 @@ export async function editField(
   if (!v) return { ok: false, error: "O valor não pode ficar vazio. Para descartar o campo, use Rejeitar." };
 
   const supabase = await createClient();
+  const { data: current } = await supabase
+    .from("article_fields")
+    .select("quote")
+    .eq("article_id", articleId)
+    .eq("key", key)
+    .maybeSingle();
   const { data: pages } = await supabase
     .from("article_pages")
     .select("pdf_page, printed_page, text")
@@ -79,6 +85,8 @@ export async function editField(
       pdf_page: page,
       printed_page: page != null ? (pages?.find((p) => p.pdf_page === page)?.printed_page ?? null) : null,
       verified,
+      // Trecho original trocado: a tradução antiga deixa de valer.
+      ...(current?.quote !== q ? { quote_translated: null } : {}),
       edited: true,
       status: "accepted",
       reviewed_by: user.id,

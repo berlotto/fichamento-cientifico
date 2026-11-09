@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BackIcon } from "@/components/icons";
 import { FontSettings, FontSync } from "@/components/font-controls";
+import { DefaultLanguage } from "@/components/language-select";
 import { ThemeSegmented } from "@/components/theme-controls";
 import { requireProfile } from "@/lib/auth";
 import { initialsOf } from "@/lib/citation";
+import { validLanguage } from "@/lib/languages";
 import { signOut } from "../../(auth)/login/actions";
 import { BackupButton } from "./backup-button";
 import { ProfileForm } from "./profile-form";
@@ -26,6 +28,15 @@ async function ProfileHeader() {
       </div>
       <ProfileForm name={p.fullName ?? ""} institution={p.institution ?? ""} />
       <FontSync ui={p.fontUi} article={p.fontArticle} />
+      <section className="flex flex-col gap-3 border-t border-line pt-6">
+        <h2 className="eyebrow">
+          <label htmlFor="fx-idioma-padrao">Idioma das fichas</label>
+        </h2>
+        <p className="m-0 text-sm">
+          Idioma padrão dos projetos novos. Cada projeto pode ter o seu (na visão do projeto).
+        </p>
+        <DefaultLanguage initial={validLanguage(p.defaultLanguage)} />
+      </section>
     </>
   );
 }

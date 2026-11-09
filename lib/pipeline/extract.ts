@@ -19,6 +19,11 @@ export type FieldRow = {
   source: "author" | "llm";
   llm_value: string;
   llm_quote: string | null;
+  /** Trecho traduzido para o idioma da ficha (null se o artigo já está nele). */
+  quote_translated: string | null;
+  /** Resumo do autor no idioma original, quando value é a tradução. */
+  source_value: string | null;
+  language: string;
 };
 
 const blank = (s: string | null | undefined) => {
@@ -51,7 +56,7 @@ export function llmMetadata(e: Extraction): BiblioMetadata {
  * Um campo é "verificado" quando o trecho existe no texto do PDF e todo número
  * do valor aparece no trecho. O resumo do autor é cópia longa: basta o trecho existir.
  */
-export function buildFieldRows(e: Extraction, pages: PageRow[]): FieldRow[] {
+export function buildFieldRows(e: Extraction, pages: PageRow[], language = "pt-BR"): FieldRow[] {
   const printed = new Map(pages.map((p) => [p.pdf_page, p.printed_page]));
   const rows: FieldRow[] = [];
 
@@ -60,8 +65,11 @@ export function buildFieldRows(e: Extraction, pages: PageRow[]): FieldRow[] {
     if (!value) continue;
 
     const fromAuthor = key === "abstract" && e.abstract_from_author;
-    // Resumo do autor sem trecho: o próprio início do resumo serve de trecho.
-    const quote = blank(f.quote) ?? (fromAuthor ? value.slice(0, 300) : null);
+    // Resumo do autor traduzido: o original fica guardado e é ele que se confere no PDF.
+    const original = fromAuthor ? blank(e.abstract_original) : null;
+    // Resumo do autor sem trecho: o início do resumo (original) serve de trecho.
+    const quote = blank(f.quote) ?? (fromAuthor ? (original ?? value).slice(0, 300) : null);
+    const translated = blank(f.quote_translated);
 
     const found = quote ? locateQuote(quote, pages) : [];
     const page = resolvePage(found, f.pdf_page);
@@ -77,6 +85,9 @@ export function buildFieldRows(e: Extraction, pages: PageRow[]): FieldRow[] {
       source: fromAuthor ? "author" : "llm",
       llm_value: value,
       llm_quote: quote,
+      quote_translated: translated && translated !== quote ? translated : null,
+      source_value: original && original !== value ? original : null,
+      language,
     });
   }
   return rows;

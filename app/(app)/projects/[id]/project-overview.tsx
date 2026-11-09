@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackIcon, DownloadIcon } from "@/components/icons";
+import { ProjectLanguage } from "@/components/language-select";
 import { requireUser } from "@/lib/auth";
 import { fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +21,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
 
   const [{ data: project }, { data: articles }, { data: custom }, { data: fieldRows }, { data: runs }] =
     await Promise.all([
-      supabase.from("projects").select("id, name").eq("id", projectId).maybeSingle(),
+      supabase.from("projects").select("id, name, output_language").eq("id", projectId).maybeSingle(),
       supabase.from("articles").select("id, status").eq("project_id", projectId),
       supabase.from("project_fields").select("key, label, instructions").eq("project_id", projectId).order("position"),
       supabase
@@ -115,6 +116,17 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
           A matriz e as planilhas trazem um artigo por linha e um campo por coluna, com a página de cada trecho.
           Campos rejeitados ficam de fora.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="eyebrow">
+          <label htmlFor="fx-idioma-projeto">Idioma das fichas</label>
+        </h2>
+        <p className="m-0 text-[13px] text-muted">
+          Os campos são escritos neste idioma, qualquer que seja o idioma do artigo. Os trechos citados ficam no
+          original (é assim que são conferidos no PDF), com a tradução ao lado e o botão “Ver origem”.
+        </p>
+        <ProjectLanguage projectId={projectId} initial={project.output_language} />
       </section>
 
       <section className="flex flex-col gap-3">

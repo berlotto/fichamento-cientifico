@@ -15,19 +15,46 @@ export type ReviewField = {
   source: string;
   status: string;
   edited: boolean;
+  /** Trecho traduzido para o idioma da ficha (null quando o artigo já está nele). */
+  quote_translated?: string | null;
+  /** Texto original quando o valor é tradução (resumo do autor). */
+  source_value?: string | null;
 };
 
 /** Link para o visualizador na página do trecho, com o trecho destacado. */
 export const viewerHref = (articleId: string, page: number, quote: string | null) =>
   `/viewer/${articleId}?p=${page}${quote ? `&q=${encodeURIComponent(quote.slice(0, 300))}#trecho` : ""}`;
 
+/** Botão que alterna entre a tradução e o texto original do artigo. */
+function OriginToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      className="text-xs font-medium text-ink underline underline-offset-2 hover:text-accent"
+    >
+      {on ? "Ver tradução" : "Ver origem"}
+    </button>
+  );
+}
+
+/**
+ * Trecho que sustenta o campo. Se o artigo está em outro idioma, mostra a
+ * tradução e "Ver origem" troca pelo trecho original (o que foi conferido no PDF).
+ */
 export function Evidence({ field, articleId }: { field: ReviewField; articleId: string }) {
+  const [original, setOriginal] = useState(false);
   if (!field.quote) return null;
   const page = field.printed_page ?? field.pdf_page;
+  const translated = field.quote_translated;
+  const shown = translated && !original ? translated : field.quote;
   return (
     <figure className="m-0 flex flex-col gap-2 border-l-2 border-line pl-4">
-      <blockquote className="m-0 font-article text-[15px] leading-[1.55] text-muted italic">“{field.quote}”</blockquote>
+      <blockquote className="m-0 font-article text-[15px] leading-[1.55] text-muted italic">“{shown}”</blockquote>
+      {translated && original && <span className="text-[11px] text-muted">Trecho original, como está no PDF</span>}
       <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {translated && <OriginToggle on={original} onToggle={() => setOriginal(!original)} />}
         {field.pdf_page ? (
           <Link
             href={viewerHref(articleId, field.pdf_page, field.quote)}
@@ -72,6 +99,7 @@ export function FieldReview({
   variant?: "card" | "plain";
 }) {
   const [editing, setEditing] = useState(false);
+  const [showSource, setShowSource] = useState(false);
   const [value, setValue] = useState(field.value);
   const [quote, setQuote] = useState(field.quote ?? "");
   const [msg, setMsg] = useState<string | null>(null);
@@ -135,7 +163,7 @@ export function FieldReview({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="label">Trecho do artigo que sustenta o valor (copie do PDF)</span>
+            <span className="label">Trecho do artigo que sustenta o valor, no idioma original (copie do PDF)</span>
             <textarea
               value={quote}
               onChange={(e) => setQuote(e.target.value)}
@@ -154,11 +182,21 @@ export function FieldReview({
         </form>
       ) : (
         <>
-          <p className="m-0 font-article text-[17px] leading-[1.6] text-pretty whitespace-pre-line">{field.value}</p>
+          <p className="m-0 font-article text-[17px] leading-[1.6] text-pretty whitespace-pre-line">
+            {showSource && field.source_value ? field.source_value : field.value}
+          </p>
           {field.source === "author" ? (
-            !field.verified && (
-              <p className="m-0 text-xs text-warn">Não foi possível localizar este resumo no texto do PDF.</p>
-            )
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {field.source_value && (
+                <>
+                  <OriginToggle on={showSource} onToggle={() => setShowSource(!showSource)} />
+                  <span className="text-muted">
+                    {showSource ? "Resumo original do autor" : "Tradução do resumo do autor"}
+                  </span>
+                </>
+              )}
+              {!field.verified && <span className="text-warn">Não foi possível localizar este resumo no texto do PDF.</span>}
+            </div>
           ) : (
             <Evidence field={field} articleId={articleId} />
           )}
