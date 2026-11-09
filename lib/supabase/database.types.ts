@@ -25,14 +25,14 @@ export type Database = {
           Tables: {
             "article_fields": {
                   Row: {
-                    "article_id": string,"created_at": string,"edited": boolean,"key": string,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"status": string,"value": string,"verified": boolean
+                    "article_id": string,"created_at": string,"edited": boolean,"key": string,"language": string | null,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"quote_translated": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"source_value": string | null,"status": string,"value": string,"verified": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "article_id": string,"created_at"?: string,"edited"?: boolean,"key": string,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source": string,"status"?: string,"value": string,"verified"?: boolean
+                    "article_id": string,"created_at"?: string,"edited"?: boolean,"key": string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source": string,"source_value"?: string | null,"status"?: string,"value": string,"verified"?: boolean
                   }
                   Update: {
-                    "article_id"?: string,"created_at"?: string,"edited"?: boolean,"key"?: string,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source"?: string,"status"?: string,"value"?: string,"verified"?: boolean
+                    "article_id"?: string,"created_at"?: string,"edited"?: boolean,"key"?: string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source"?: string,"source_value"?: string | null,"status"?: string,"value"?: string,"verified"?: boolean
                   }
                   Relationships: [
                     {
@@ -125,14 +125,14 @@ isOneToOne: false
                   ]
                 },"projects": {
                   Row: {
-                    "created_at": string,"id": string,"name": string,"owner_id": string
+                    "created_at": string,"id": string,"name": string,"output_language": string,"owner_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name": string,"owner_id"?: string
+                    "created_at"?: string,"id"?: string,"name": string,"output_language"?: string,"owner_id"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string,"owner_id"?: string
+                    "created_at"?: string,"id"?: string,"name"?: string,"output_language"?: string,"owner_id"?: string
                   }
                   Relationships: [
                     

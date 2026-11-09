@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { BUILTIN_FIELDS, fieldKey } from "@/lib/fields";
+import { validLanguage } from "@/lib/languages";
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,7 +18,10 @@ export async function createProject(
   if (!name) return { error: "Informe um nome." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from("projects").insert({ name }).select("id").single();
+  // Idioma da ficha: o padrão escolhido no perfil (Português do Brasil se nunca escolheu).
+  const { data: user } = await supabase.auth.getUser();
+  const output_language = validLanguage(user.user?.user_metadata?.default_output_language);
+  const { data, error } = await supabase.from("projects").insert({ name, output_language }).select("id").single();
   if (error?.code === "P0001") return { error: error.message };
   if (error || !data) return { error: "Não foi possível criar o projeto." };
 
@@ -101,4 +105,16 @@ export async function reextractProject(projectId: string): Promise<ProjectAction
   }
   revalidatePath("/projects", "layout");
   return { ok: true, queued };
+}
+
+/** Idioma em que as fichas do projeto são escritas (vale para as próximas extrações). */
+export async function setProjectLanguage(projectId: string, code: string): Promise<ProjectActionState> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ output_language: validLanguage(code) })
+    .eq("id", projectId);
+  if (error) return { error: "Não foi possível salvar o idioma." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
 }

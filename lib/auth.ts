@@ -11,6 +11,8 @@ export type Profile = CurrentUser & {
   /** Fontes escolhidas no perfil (null: nunca escolheu; vale o que está no navegador). */
   fontUi: string | null;
   fontArticle: string | null;
+  /** Idioma padrão das fichas em projetos novos. */
+  defaultLanguage: string | null;
 };
 
 /**
@@ -39,5 +41,6 @@ export async function requireProfile(): Promise<Profile> {
     institution: str(meta.institution),
     fontUi: str(meta.font_ui),
     fontArticle: str(meta.font_article),
+    defaultLanguage: str(meta.default_output_language),
   };
 }

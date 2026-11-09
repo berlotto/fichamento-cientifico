@@ -18,6 +18,7 @@ type Client = Awaited<ReturnType<typeof createClient>>;
 export type TableField = {
   value: string;
   quote: string | null;
+  quote_translated: string | null;
   pdf_page: number | null;
   printed_page: string | null;
   verified: boolean;
@@ -48,7 +49,9 @@ export async function loadProjectTable(supabase: Client, projectId: string): Pro
       .order("created_at"),
     supabase
       .from("article_fields")
-      .select("article_id, key, value, quote, pdf_page, printed_page, verified, status, articles!inner(project_id)")
+      .select(
+        "article_id, key, value, quote, quote_translated, pdf_page, printed_page, verified, status, articles!inner(project_id)",
+      )
       .eq("articles.project_id", projectId)
       .neq("status", "rejected"),
   ]);
@@ -90,8 +93,8 @@ export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] }
   ];
   const widths = [22, 50, 40, 8, 30, 8, 8, 10, 28, 8, 60];
   for (const d of t.defs) {
-    header.push(d.label, `${d.label}: trecho`, `${d.label}: página`, `${d.label}: revisão`);
-    widths.push(60, 50, 10, 12);
+    header.push(d.label, `${d.label}: trecho original`, `${d.label}: trecho traduzido`, `${d.label}: página`, `${d.label}: revisão`);
+    widths.push(60, 50, 50, 10, 12);
   }
 
   const rows: Cell[][] = [header];
@@ -111,7 +114,13 @@ export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] }
     ];
     for (const d of t.defs) {
       const f = a.fields[d.key];
-      row.push(f?.value ?? "", f?.quote ?? "", f ? pageLabel(f) : "", f ? (STATUS[f.status] ?? f.status) : "");
+      row.push(
+        f?.value ?? "",
+        f?.quote ?? "",
+        f?.quote_translated ?? "",
+        f ? pageLabel(f) : "",
+        f ? (STATUS[f.status] ?? f.status) : "",
+      );
     }
     rows.push(row);
   }

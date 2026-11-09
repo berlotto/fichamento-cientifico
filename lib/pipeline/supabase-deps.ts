@@ -1,5 +1,6 @@
 import "server-only";
 
+import { languageByCode } from "@/lib/languages";
 import { extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { buildFieldRows, llmMetadata, statusAfterExtract } from "./extract";
@@ -97,6 +98,14 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
   if (pgError) throw new Error(`ler páginas: ${pgError.message}`);
   if (!pages?.length) throw new PermanentError("O artigo não tem texto extraído.");
 
+  const { data: project, error: prError } = await db
+    .from("projects")
+    .select("output_language")
+    .eq("id", article.project_id)
+    .single();
+  if (prError) throw new Error(`ler projeto: ${prError.message}`);
+  const language = languageByCode(project.output_language);
+
   const { data: custom, error: cfError } = await db
     .from("project_fields")
     .select("key, label, instructions")
@@ -107,6 +116,7 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
   const { extraction, model, inputTokens, outputTokens, costUsd, latencyMs } = await extractWithLlm(
     pages,
     custom ?? [],
+    language.prompt,
   );
   const { error: runError } = await db.from("llm_runs").insert({
     article_id,
@@ -143,7 +153,7 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
   if (revError) throw new Error(`ler campos revisados: ${revError.message}`);
   const reviewed = new Set((reviewedRows ?? []).map((r) => r.key));
 
-  const rows = buildFieldRows(extraction, pages).filter((r) => !reviewed.has(r.key));
+  const rows = buildFieldRows(extraction, pages, language.code).filter((r) => !reviewed.has(r.key));
   const { error: delError } = await db
     .from("article_fields")
     .delete()

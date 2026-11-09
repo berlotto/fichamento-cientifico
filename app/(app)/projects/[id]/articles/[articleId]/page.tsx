@@ -43,7 +43,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
       .maybeSingle(),
     supabase
       .from("article_fields")
-      .select("key, value, quote, pdf_page, printed_page, verified, source, status, edited")
+      .select("key, value, quote, quote_translated, source_value, pdf_page, printed_page, verified, source, status, edited")
       .eq("article_id", articleId),
     supabase.from("project_fields").select("key, label").eq("project_id", id).order("position"),
     supabase.from("llm_runs").select("cost_usd").eq("article_id", articleId),
