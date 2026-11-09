@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackIcon, DownloadIcon } from "@/components/icons";
 import { ProjectLanguage } from "@/components/language-select";
-import { requireUser } from "@/lib/auth";
+import { preferredCitationStyle, requireUser } from "@/lib/auth";
 import { fieldDefs } from "@/lib/fields";
+import { usd } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
 
-const usd = (n: number) =>
-  n < 0.01 ? `US$ ${n.toFixed(4)}` : n.toLocaleString("pt-BR", { style: "currency", currency: "USD" });
+const REF_LABEL = { abnt: "ABNT", apa: "APA", vancouver: "Vancouver" } as const;
 const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "—");
 
 /**
@@ -18,12 +18,15 @@ const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "�
 export async function ProjectOverview({ projectId, pane }: { projectId: string; pane?: boolean }) {
   await requireUser();
   const supabase = await createClient();
+  const style = await preferredCitationStyle();
+  // BibTeX já tem botão próprio; a lista de referências usa a norma preferida (ABNT se for BibTeX).
+  const refStyle = style === "bibtex" ? "abnt" : style;
 
   const [{ data: project }, { data: articles }, { data: custom }, { data: fieldRows }, { data: runs }] =
     await Promise.all([
       supabase
         .from("projects")
-        .select("id, name, output_language, cross_check, auto_approve, critical_fields")
+        .select("id, name, output_language, cross_check, auto_approve, critical_fields, audit_rate")
         .eq("id", projectId)
         .maybeSingle(),
       supabase.from("articles").select("id, status").eq("project_id", projectId),
@@ -121,7 +124,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
           {exportLink("xlsx", "Excel")}
           {exportLink("csv", "CSV")}
           {exportLink("bib", "BibTeX")}
-          {exportLink("abnt", "Referências ABNT")}
+          {exportLink(refStyle, `Referências ${REF_LABEL[refStyle]}`)}
         </div>
         <p className="m-0 text-[13px] text-muted">
           A matriz e as planilhas trazem um artigo por linha e um campo por coluna, com a página de cada trecho.
@@ -148,6 +151,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
             crossCheck: project.cross_check,
             autoApprove: project.auto_approve,
             critical: project.critical_fields,
+            auditRate: Number(project.audit_rate),
           }}
           fields={defs.map((d) => ({ key: d.key, label: d.label }))}
         />

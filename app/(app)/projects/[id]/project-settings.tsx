@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { VerificationControls } from "@/components/verification-controls";
 import {
   addProjectField,
   deleteProject,
@@ -185,7 +186,7 @@ export function DeleteProject({ projectId }: { projectId: string }) {
   );
 }
 
-/** Verificação automática: segundo extrator + juiz, aprovação automática e campos críticos. */
+/** Verificação automática do projeto: salva a cada mudança. */
 export function VerificationSettings({
   projectId,
   initial,
@@ -209,61 +210,7 @@ export function VerificationSettings({
 
   return (
     <div className="flex flex-col gap-3" aria-busy={pending}>
-      <label className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          className="mt-1 size-4 accent-[var(--accent)]"
-          checked={v.crossCheck}
-          onChange={(e) => save({ ...v, crossCheck: e.target.checked, autoApprove: e.target.checked && v.autoApprove })}
-        />
-        <span className="flex flex-col">
-          <span className="text-sm font-medium">Conferir com um segundo modelo e um juiz</span>
-          <span className="text-[13px] text-muted">
-            Outro modelo, de outro fornecedor, lê o artigo de forma independente; um terceiro confere se os dois
-            concordam, se o trecho sustenta o valor e se é deste estudo. Cerca de 2× o custo da extração.
-          </span>
-        </span>
-      </label>
-      <label className={`flex items-start gap-3 ${v.crossCheck ? "" : "opacity-50"}`}>
-        <input
-          type="checkbox"
-          className="mt-1 size-4 accent-[var(--accent)]"
-          checked={v.autoApprove}
-          disabled={!v.crossCheck}
-          onChange={(e) => save({ ...v, autoApprove: e.target.checked })}
-        />
-        <span className="flex flex-col">
-          <span className="text-sm font-medium">Aprovar sozinho o que passar em todas as verificações</span>
-          <span className="text-[13px] text-muted">
-            Campos críticos nunca. 10% das aprovações vão para auditoria às cegas; um campo com mais de 10% de erro
-            (em 5 ou mais auditorias) deixa de ser aprovado sozinho.
-          </span>
-        </span>
-      </label>
-      <div className={`flex flex-col gap-2 ${v.crossCheck && v.autoApprove ? "" : "opacity-50"}`}>
-        <span className="text-[13px] font-medium">Campos críticos (sempre com revisão humana)</span>
-        <div className="flex flex-wrap gap-2">
-          {fields.map((f) => {
-            const on = v.critical.includes(f.key);
-            return (
-              <button
-                key={f.key}
-                type="button"
-                aria-pressed={on}
-                disabled={!v.crossCheck || !v.autoApprove}
-                onClick={() =>
-                  save({ ...v, critical: on ? v.critical.filter((k) => k !== f.key) : [...v.critical, f.key] })
-                }
-                className={`rounded-full border px-3 py-1 text-[13px] ${
-                  on ? "border-accent bg-tint text-ink" : "border-line text-muted hover:border-muted"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <VerificationControls value={v} onChange={save} fields={fields} />
       <span aria-live="polite" className="text-xs text-muted">
         {pending ? "Salvando…" : msg}
       </span>

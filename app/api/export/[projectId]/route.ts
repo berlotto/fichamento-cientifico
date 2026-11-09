@@ -1,8 +1,8 @@
-import { abntList, bibFile, loadProjectTable, tableRows } from "@/lib/export/project-table";
+import { bibFile, loadProjectTable, referenceList, tableRows } from "@/lib/export/project-table";
 import { buildCsv, buildXlsx } from "@/lib/export/xlsx";
 import { createClient } from "@/lib/supabase/server";
 
-/** Exporta o projeto: ?format=xlsx | csv | bib | abnt. RLS: só projetos do usuário. */
+/** Exporta o projeto: ?format=xlsx | csv | bib | abnt | apa | vancouver. RLS: só projetos do usuário. */
 export async function GET(request: Request, { params }: RouteContext<"/api/export/[projectId]">) {
   const { projectId } = await params;
   const format = new URL(request.url).searchParams.get("format") ?? "xlsx";
@@ -38,7 +38,9 @@ export async function GET(request: Request, { params }: RouteContext<"/api/expor
     case "bib":
       return send(bibFile(table), "application/x-bibtex; charset=utf-8", "bib");
     case "abnt":
-      return send(abntList(table), "text/plain; charset=utf-8", "referencias-abnt.txt");
+    case "apa":
+    case "vancouver":
+      return send(referenceList(table, format), "text/plain; charset=utf-8", `referencias-${format}.txt`);
     case "xlsx": {
       const { rows, widths } = tableRows(table);
       const bytes = buildXlsx(table.name, rows, widths);

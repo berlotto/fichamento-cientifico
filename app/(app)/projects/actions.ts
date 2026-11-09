@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { BUILTIN_FIELDS, fieldKey } from "@/lib/fields";
 import { validLanguage } from "@/lib/languages";
+import { AUDIT_RATES, projectDefaultsFrom } from "@/lib/project-defaults";
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,10 +19,23 @@ export async function createProject(
   if (!name) return { error: "Informe um nome." };
 
   const supabase = await createClient();
-  // Idioma da ficha: o padrão escolhido no perfil (Português do Brasil se nunca escolheu).
+  // Idioma e verificação: os padrões escolhidos nas configurações.
   const { data: user } = await supabase.auth.getUser();
-  const output_language = validLanguage(user.user?.user_metadata?.default_output_language);
-  const { data, error } = await supabase.from("projects").insert({ name, output_language }).select("id").single();
+  const meta = user.user?.user_metadata ?? {};
+  const output_language = validLanguage(meta.default_output_language);
+  const d = projectDefaultsFrom(meta);
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      name,
+      output_language,
+      cross_check: d.crossCheck,
+      auto_approve: d.autoApprove,
+      critical_fields: d.critical,
+      audit_rate: d.auditRate,
+    })
+    .select("id")
+    .single();
   if (error?.code === "P0001") return { error: error.message };
   if (error || !data) return { error: "Não foi possível criar o projeto." };
 
@@ -123,6 +137,7 @@ export type VerificationSettings = {
   crossCheck: boolean;
   autoApprove: boolean;
   critical: string[];
+  auditRate: number;
 };
 
 /** Verificação automática do projeto (segundo extrator + juiz, aprovação automática, campos críticos). */
@@ -135,6 +150,7 @@ export async function saveVerification(projectId: string, v: VerificationSetting
       // Sem verificação não há base para aprovar sozinho.
       auto_approve: v.crossCheck && v.autoApprove,
       critical_fields: [...new Set(v.critical.filter((k) => /^[a-z][a-z0-9_]{1,39}$/.test(k)))].slice(0, 40),
+      audit_rate: (AUDIT_RATES as readonly number[]).includes(v.auditRate) ? v.auditRate : 0.1,
     })
     .eq("id", projectId);
   if (error) return { error: "Não foi possível salvar." };

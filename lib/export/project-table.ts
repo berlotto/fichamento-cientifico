@@ -1,7 +1,11 @@
 import "server-only";
 
 import {
+  abntParts,
   abntReference,
+  apaParts,
+  refText,
+  vancouverParts,
   bibtex,
   fullName,
   fullTitle,
@@ -127,7 +131,22 @@ export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] }
   return { rows, widths };
 }
 
-/** Lista de referências ABNT em ordem alfabética (como na seção de referências). */
+/**
+ * Lista de referências na norma escolhida. ABNT e APA em ordem alfabética;
+ * Vancouver numerada na ordem dos artigos do projeto.
+ */
+export function referenceList(t: ProjectTable, style: "abnt" | "apa" | "vancouver"): string {
+  const build = { abnt: abntParts, apa: apaParts, vancouver: vancouverParts }[style];
+  const refs = t.articles.flatMap((a) => {
+    const p = build(a);
+    return p ? [refText(p)] : [];
+  });
+  if (style === "vancouver") return refs.map((r, i) => `${i + 1}. ${r}`).join("\n\n") + "\n";
+  refs.sort((x, y) => x.localeCompare(y, "pt-BR"));
+  return refs.join("\n\n") + "\n";
+}
+
+/** Lista ABNT em ordem alfabética (como na seção de referências). */
 export function abntList(t: ProjectTable): string {
   const refs = t.articles.flatMap((a) => abntReference(a) ?? []);
   refs.sort((x, y) => x.localeCompare(y, "pt-BR"));

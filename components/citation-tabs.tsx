@@ -26,8 +26,14 @@ function Rendered({ parts }: { parts: RefPart[] }) {
 }
 
 /** Referência do artigo em cada norma, com copiar. Copia texto simples (sem negrito/itálico). */
-export function CitationTabs({ refs }: { refs: Record<CitationStyle, RefPart[]> }) {
-  const [style, setStyle] = useState<CitationStyle>("abnt");
+export function CitationTabs({
+  refs,
+  initial = "abnt",
+}: {
+  refs: Record<CitationStyle, RefPart[]>;
+  initial?: CitationStyle;
+}) {
+  const [style, setStyle] = useState<CitationStyle>(initial);
   const text = refText(refs[style]);
 
   return (
