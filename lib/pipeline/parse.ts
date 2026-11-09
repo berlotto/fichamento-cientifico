@@ -1,6 +1,6 @@
 import { extractText, extractTextItems, getDocumentProxy } from "unpdf";
 import { inferPrintedPages, marginNumbers } from "./printed-page";
-import { repairPageText } from "./text-quality";
+import { repairPageText, unshift29 } from "./text-quality";
 
 export type ParsedPage = { pdf_page: number; printed_page: string | null; text: string };
 export type ParseResult = { pages: ParsedPage[]; needsOcr: boolean };
@@ -20,12 +20,21 @@ export async function parsePdf(data: Uint8Array): Promise<ParseResult> {
     const { text } = await extractText(pdf, { mergePages: false });
     const { items } = await extractTextItems(pdf);
 
-    const printed = inferPrintedPages(
-      items.map((pageItems, i) => ({ pdf_page: i + 1, numbers: marginNumbers(pageItems) })),
-    );
-
     // Postgres não aceita NUL em text.
-    const repaired = text.map((t) => repairPageText(t.replaceAll("\u0000", "")));
+    const cleaned = text.map((t) => t.replaceAll("\u0000", ""));
+    const repaired = cleaned.map((t) => repairPageText(t));
+
+    // Página com fonte deslocada: o número no cabeçalho também está deslocado.
+    const printed = inferPrintedPages(
+      items.map((pageItems, i) => ({
+        pdf_page: i + 1,
+        numbers: marginNumbers(
+          repaired[i] && repaired[i].text !== cleaned[i]
+            ? pageItems.map((it) => ({ ...it, str: unshift29(it.str) }))
+            : pageItems,
+        ),
+      })),
+    );
     const pages = repaired.map((r, i) => ({
       pdf_page: i + 1,
       printed_page: printed.get(i + 1) ?? null,

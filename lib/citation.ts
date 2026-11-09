@@ -301,3 +301,15 @@ export function initialsOf(name: string | null | undefined, email?: string | nul
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (email ?? "?").slice(0, 2).toUpperCase();
 }
+
+/**
+ * Título para exibir: sem o subtítulo quando o título já termina com ele
+ * ("X. Subtítulo" + subtítulo "Subtítulo"), comum em registros do Crossref.
+ */
+export function displayTitle(article: { title?: string | null; subtitle?: string | null }): string | null {
+  const title = article.title?.trim();
+  const sub = article.subtitle?.trim();
+  if (!title) return null;
+  if (!sub || title.length <= sub.length || !title.toLowerCase().endsWith(sub.toLowerCase())) return title;
+  return title.slice(0, title.length - sub.length).replace(/[\s.:;,—–-]+$/, "") || title;
+}

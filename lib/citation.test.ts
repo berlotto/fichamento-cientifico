@@ -4,6 +4,7 @@ import {
   abntReference,
   allReferences,
   apaParts,
+  displayTitle,
   authorLine,
   authorLines,
   bibtex,
@@ -179,5 +180,15 @@ describe("auxiliares", () => {
     expect(initialsOf("Sérgio Berlotto Jr.")).toBe("SJ");
     expect(initialsOf("Ana")).toBe("AN");
     expect(initialsOf(null, "sergio@x.com")).toBe("SE");
+  });
+});
+
+describe("displayTitle", () => {
+  it("tira do título o subtítulo repetido; sem repetição, mantém", () => {
+    expect(displayTitle({ title: "O papel do ozônio. Um mapa de evidências", subtitle: "Um mapa de evidências" })).toBe(
+      "O papel do ozônio",
+    );
+    expect(displayTitle({ title: "Título", subtitle: "Outra coisa" })).toBe("Título");
+    expect(displayTitle({ title: null })).toBeNull();
   });
 });

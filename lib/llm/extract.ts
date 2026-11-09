@@ -153,7 +153,8 @@ export async function extractWithLlm(
   const started = Date.now();
   const { output, usage, providerMetadata } = await generateText({
     model,
-    temperature: 0,
+    // Modelos de raciocínio da OpenAI (gpt-5, o*) não aceitam temperature.
+    ...(/^openai\/(gpt-5|o\d)/.test(model) ? {} : { temperature: 0 }),
     system: systemPrompt(lang) + customFieldsPrompt(custom),
     prompt: `Artigo:\n\n${pagesPrompt(pages)}`,
     output: Output.object({ schema: extractionSchema(custom) }),

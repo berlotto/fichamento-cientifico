@@ -5,7 +5,7 @@ import { CitationTabs } from "@/components/citation-tabs";
 import { BackIcon, CheckIcon, FileIcon, LinkIcon } from "@/components/icons";
 import { articleStatus, IN_PROGRESS, TONE_CLASS } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
-import { allReferences, authorLines, fullName, isArticleNumber, parseAuthors } from "@/lib/citation";
+import { allReferences, authorLines, displayTitle, fullName, isArticleNumber, parseAuthors } from "@/lib/citation";
 import { fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleTools } from "./article-tools";
@@ -98,7 +98,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
 
         <div className="flex flex-col gap-2">
           <h1 className="m-0 font-article text-[34px] leading-[1.15] font-normal tracking-[-0.01em] text-pretty max-[860px]:text-[28px]">
-            {a.title ?? a.original_filename ?? "Sem título"}
+            {displayTitle(a) ?? a.original_filename ?? "Sem título"}
           </h1>
           {a.subtitle && <p className="m-0 font-article text-xl leading-snug text-muted text-pretty">{a.subtitle}</p>}
         </div>
