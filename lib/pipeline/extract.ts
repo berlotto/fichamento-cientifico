@@ -2,7 +2,7 @@
  * Estágio extract, parte pura: transforma a saída do LLM + Crossref em linhas
  * para gravar, conferindo cada trecho no texto do PDF (verify.ts).
  */
-import type { Extraction, FieldKey } from "@/lib/llm/extract";
+import type { ExtractedField, Extraction, FieldKey } from "@/lib/llm/extract";
 import type { BiblioMetadata } from "./metadata";
 import { normalizeDoi } from "./metadata";
 import { locateQuote, numbersInQuote, resolvePage, type PageText } from "./verify";
@@ -17,6 +17,8 @@ export type FieldRow = {
   printed_page: string | null;
   verified: boolean;
   source: "author" | "llm";
+  llm_value: string;
+  llm_quote: string | null;
 };
 
 const blank = (s: string | null | undefined) => {
@@ -53,7 +55,7 @@ export function buildFieldRows(e: Extraction, pages: PageRow[]): FieldRow[] {
   const printed = new Map(pages.map((p) => [p.pdf_page, p.printed_page]));
   const rows: FieldRow[] = [];
 
-  for (const [key, f] of Object.entries(e.fields) as [FieldKey, Extraction["fields"][FieldKey]][]) {
+  for (const [key, f] of Object.entries(e.fields) as [FieldKey, ExtractedField][]) {
     const value = blank(f.value);
     if (!value) continue;
 
@@ -73,12 +75,22 @@ export function buildFieldRows(e: Extraction, pages: PageRow[]): FieldRow[] {
       printed_page: page != null ? (printed.get(page) ?? null) : null,
       verified,
       source: fromAuthor ? "author" : "llm",
+      llm_value: value,
+      llm_quote: quote,
     });
   }
   return rows;
 }
 
-/** extracted: tudo conferido; needs_review: algum trecho não foi encontrado ou não sustenta o número. */
-export function statusAfterExtract(rows: FieldRow[]): "extracted" | "needs_review" {
-  return rows.length > 0 && rows.every((r) => r.verified) ? "extracted" : "needs_review";
+/**
+ * Status depois da extração. `reviewed` = campos que o usuário já revisou e que a
+ * reextração preserva. Tudo revisado: verified; senão extracted se os trechos novos
+ * conferem, needs_review se algum não confere.
+ */
+export function statusAfterExtract(
+  rows: FieldRow[],
+  reviewed = 0,
+): "extracted" | "needs_review" | "verified" {
+  if (rows.length === 0) return reviewed > 0 ? "verified" : "needs_review";
+  return rows.every((r) => r.verified) ? "extracted" : "needs_review";
 }

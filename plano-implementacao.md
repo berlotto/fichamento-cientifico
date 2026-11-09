@@ -30,7 +30,13 @@ Em vez do template de campos editável (F1.1) e das tabelas `extractions`/`verdi
 | F1.5 Verificação | Feito com `verify.ts`: trecho localizado no PDF e números do valor presentes no trecho. Artigo fica `extracted` se tudo confere, senão `needs_review` |
 | F1.9 Referências | ABNT, APA 7, Vancouver e BibTeX montadas por código (`lib/citation.ts`) |
 | Importar por URL | Feito. Link direto do PDF ou página do artigo (`citation_pdf_url`); bloqueio de IP interno, 50 MB, 30 s |
-| Pendente | Revisão/edição dos campos (F1.7), matriz (F1.8), export CSV/xlsx, `llm_runs` (custo por artigo), gold set (F1.10) |
+| F1.1 Campos | Versão simples: 6 campos fixos + campos personalizados por projeto (`project_fields`, até 20), sem versionamento de template. "Extrair de novo" (artigo ou projeto) preserva os campos já revisados |
+| F1.7 Revisão | Feito na própria ficha: aceitar, editar (valor e trecho; o trecho é conferido de novo no PDF) e rejeitar; desfazer. Artigo vira `verified` quando nada está pendente (trigger). O link da página abre o visualizador com o trecho destacado |
+| F1.8 Matriz | Feito: `/matrix/[projectId]`, só revisados por padrão, "incluir a revisar" com selo |
+| F1.9 Export | Excel (.xlsx gerado com `fflate`), CSV (`;` + BOM, fórmulas neutralizadas), BibTeX e lista ABNT ordenada |
+| Custo | `llm_runs` com tokens, custo (informado pelo AI Gateway) e latência; total e média na visão do projeto |
+| F1.10 Gold set | A taxa de acerto sai das próprias revisões (valor original do LLM guardado em `llm_value`): tabela "Qualidade da extração" por campo. Gold set independente, preenchido sem ver o LLM, continua na F2 |
+| F0 pendentes | Renomear/excluir projeto e artigo; A11 (PDF sai do Storage quando nenhum artigo o usa). Parse testado com 5 PDFs reais (PLOS, BMC, eLife, arXiv, Frontiers): "Page X of Y" passou a contar como página impressa; texto com fonte deslocada (eLife) é consertado. Falta um PDF escaneado e um da SciELO |
 
 ---
 

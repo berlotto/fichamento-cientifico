@@ -5,7 +5,9 @@ import {
   allReferences,
   apaParts,
   authorLine,
+  authorLines,
   bibtex,
+  parseAuthorLines,
   fullTitle,
   initialsOf,
   parseAuthors,
@@ -148,6 +150,20 @@ describe("referências completas", () => {
   it("allReferences é null sem ano", () => {
     expect(allReferences({ ...full, year: null })).toBeNull();
     expect(Object.keys(allReferences(full)!)).toEqual(["abnt", "apa", "vancouver", "bibtex"]);
+  });
+});
+
+describe("autores digitados à mão", () => {
+  it("aceita 'Sobrenome, Prenome' e 'Prenome Sobrenome', uma por linha ou com ;", () => {
+    expect(parseAuthorLines("Silva, Maria Clara\nJoão  Souza; Platão\n\n")).toEqual([
+      { family: "Silva", given: "Maria Clara" },
+      { family: "Souza", given: "João" },
+      { family: "Platão" },
+    ]);
+  });
+  it("ida e volta pelo formulário", () => {
+    const authors = [{ family: "Silva", given: "Maria" }, { family: "Grupo X" }];
+    expect(parseAuthorLines(authorLines(authors))).toEqual(authors);
   });
 });
 

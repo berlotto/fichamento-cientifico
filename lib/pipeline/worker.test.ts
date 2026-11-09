@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_ATTEMPTS, runWorker, type PipelineMessage, type Queue, type QueueMessage } from "./worker";
+import { MAX_ATTEMPTS, PermanentError, runWorker, type PipelineMessage, type Queue, type QueueMessage } from "./worker";
 
 const ARTICLE = "11111111-2222-3333-4444-555555555555";
 
@@ -114,5 +114,18 @@ describe("runWorker", () => {
     const r = await runWorker({ ...deps(q.queue, vi.fn(), extract), now: () => t }, 1000);
     expect(extract).toHaveBeenCalledTimes(1);
     expect(r.processed).toBe(1);
+  });
+});
+
+describe("falha permanente", () => {
+  it("marca failed na primeira tentativa e arquiva", async () => {
+    const q = fakeQueue([{ article_id: ARTICLE, stage: "parse" }]);
+    const d = deps(q.queue, async () => {
+      throw new PermanentError("PDF não encontrado no armazenamento.");
+    });
+    const r = await runWorker(d, 1000);
+    expect(r.failed).toBe(1);
+    expect(d.markFailed).toHaveBeenCalledWith(ARTICLE, "PDF não encontrado no armazenamento.");
+    expect(q.msgs[0].archived).toBe(true);
   });
 });

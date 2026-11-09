@@ -49,3 +49,17 @@ describe("inferPrintedPages", () => {
     expect([...inferPrintedPages(pages).values()]).toEqual([null, null, null]);
   });
 });
+
+describe("rótulo de página no cabeçalho", () => {
+  it('"Page 2 of 9" (BMC) e "Página 3 de 10"', () => {
+    const items = [
+      { str: "Kim et al. BMC Public Health (2020) 20:1257", y: 800 },
+      { str: "Page 2 of 9", y: 800 },
+      { str: "corpo do texto", y: 500 },
+      { str: "mais texto", y: 400 },
+      { str: "rodapé", y: 40 },
+    ];
+    expect(marginNumbers(items)).toContain(2);
+    expect(marginNumbers([{ str: "Página 3 de 10", y: 30 }, { str: "x", y: 500 }])).toContain(3);
+  });
+});

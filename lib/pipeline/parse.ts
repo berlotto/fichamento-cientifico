@@ -1,5 +1,6 @@
 import { extractText, extractTextItems, getDocumentProxy } from "unpdf";
 import { inferPrintedPages, marginNumbers } from "./printed-page";
+import { repairPageText } from "./text-quality";
 
 export type ParsedPage = { pdf_page: number; printed_page: string | null; text: string };
 export type ParseResult = { pages: ParsedPage[]; needsOcr: boolean };
@@ -23,14 +24,17 @@ export async function parsePdf(data: Uint8Array): Promise<ParseResult> {
       items.map((pageItems, i) => ({ pdf_page: i + 1, numbers: marginNumbers(pageItems) })),
     );
 
-    const pages = text.map((t, i) => ({
+    // Postgres não aceita NUL em text.
+    const repaired = text.map((t) => repairPageText(t.replaceAll("\u0000", "")));
+    const pages = repaired.map((r, i) => ({
       pdf_page: i + 1,
       printed_page: printed.get(i + 1) ?? null,
-      // Postgres não aceita NUL em text.
-      text: t.replaceAll("\u0000", ""),
+      text: r.text,
     }));
 
-    return { pages, needsOcr: needsOcr(text) };
+    // Ilegível na maioria das páginas: trata como escaneado (precisa de OCR).
+    const garbled = repaired.filter((r) => r.garbled).length > repaired.length / 2;
+    return { pages, needsOcr: garbled || needsOcr(text) };
   } finally {
     await pdf.loadingTask.destroy();
   }

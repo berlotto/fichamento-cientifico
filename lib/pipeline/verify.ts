@@ -83,3 +83,21 @@ export function numbersInQuote(value: unknown, quote: string): boolean {
     numericForms(token).some((n) => quoteForms.has(n)),
   );
 }
+
+/**
+ * Posição do trecho no texto da página, para destacar no visualizador. Tolera
+ * quebras de linha, hifenização e pontuação diferentes entre as palavras. Se o
+ * trecho continua na página seguinte, destaca só o começo (primeiras palavras).
+ */
+export function findQuoteRange(text: string, quote: string): [number, number] | null {
+  const words = quote.normalize("NFKC").match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (words.length < 3) return null;
+  // As palavras só têm letras e números: não há o que escapar na regex.
+  const source = text.normalize("NFKC");
+  for (const n of [words.length, Math.min(words.length, 12), Math.min(words.length, 6)]) {
+    const re = new RegExp(words.slice(0, n).join(String.raw`[^\p{L}\p{N}]+`), "iu");
+    const m = re.exec(source);
+    if (m) return [m.index, m.index + m[0].length];
+  }
+  return null;
+}

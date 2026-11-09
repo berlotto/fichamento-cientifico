@@ -1,10 +1,16 @@
-/** Projeto aberto, nenhum artigo escolhido. */
-export default function ProjectPage() {
+import { Suspense } from "react";
+import { ProjectOverview } from "./project-overview";
+
+/** Projeto aberto, nenhum artigo escolhido: visão geral do projeto (no celular, a lista ocupa a tela). */
+export default function ProjectPage({ params }: PageProps<"/projects/[id]">) {
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <p className="m-0 max-w-sm text-center text-sm text-muted">
-        Escolha um artigo na lista para abrir a ficha.
-      </p>
-    </div>
+    <Suspense fallback={<p className="m-0 p-8 text-sm text-muted">Carregando…</p>}>
+      <Overview params={params} />
+    </Suspense>
   );
+}
+
+async function Overview({ params }: { params: PageProps<"/projects/[id]">["params"] }) {
+  const { id } = await params;
+  return <ProjectOverview projectId={id} />;
 }
