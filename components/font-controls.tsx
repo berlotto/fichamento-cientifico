@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { saveFonts } from "@/app/(app)/profile/actions";
 import {
   CATEGORY_LABEL,
   FONT_ARTICLE_KEY,
   FONT_OPTIONS,
   FONT_UI_KEY,
+  fontById,
   validFont,
   type FontCategory,
   type FontRole,
@@ -16,12 +17,12 @@ const listeners = new Set<() => void>();
 const attr = (role: FontRole) => (role === "ui" ? "fontUi" : "fontArticle");
 const storageKey = (role: FontRole) => (role === "ui" ? FONT_UI_KEY : FONT_ARTICLE_KEY);
 
-function current(role: FontRole): string {
+export function currentFont(role: FontRole): string {
   return validFont(document.documentElement.dataset[attr(role)], role);
 }
 
 /** Aplica a fonte no <html> e guarda no navegador (o script do <head> lê na próxima visita). */
-function applyFont(role: FontRole, id: string) {
+export function applyFont(role: FontRole, id: string) {
   const el = document.documentElement;
   if (id === "padrao") delete el.dataset[attr(role)];
   else el.dataset[attr(role)] = id;
@@ -34,13 +35,13 @@ function applyFont(role: FontRole, id: string) {
   listeners.forEach((l) => l());
 }
 
-function useFont(role: FontRole): string {
+export function useFont(role: FontRole): string {
   return useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    () => current(role),
+    () => currentFont(role),
     () => "padrao",
   );
 }
@@ -51,8 +52,8 @@ function useFont(role: FontRole): string {
  */
 export function FontSync({ ui, article }: { ui: string | null; article: string | null }) {
   useEffect(() => {
-    if (ui && validFont(ui, "ui") !== current("ui")) applyFont("ui", validFont(ui, "ui"));
-    if (article && validFont(article, "article") !== current("article")) {
+    if (ui && validFont(ui, "ui") !== currentFont("ui")) applyFont("ui", validFont(ui, "ui"));
+    if (article && validFont(article, "article") !== currentFont("article")) {
       applyFont("article", validFont(article, "article"));
     }
   }, [ui, article]);
@@ -61,108 +62,57 @@ export function FontSync({ ui, article }: { ui: string | null; article: string |
 
 const ORDER: FontCategory[] = ["padrao", "sem-serifa", "serifa", "manuscrita"];
 
-/** Amostra de cada fonte escrita nela mesma (o "Padrão" usa a fonte padrão daquele papel). */
-function sampleFamily(role: FontRole, cssVar: string) {
-  if (cssVar) return `var(${cssVar})`;
-  return role === "ui" ? "var(--font-instrument-sans)" : "var(--font-newsreader)";
-}
-
-function FontPicker({ role, onChange }: { role: FontRole; onChange: () => void }) {
+/**
+ * Lista suspensa de fontes de um papel (interface ou artigo). Aplica na hora e
+ * guarda na conta; `onSaved` informa o resultado.
+ */
+export function FontSelect({
+  role,
+  id,
+  onSaved,
+}: {
+  role: FontRole;
+  id: string;
+  onSaved?: (ok: boolean) => void;
+}) {
   const selected = useFont(role);
   const options = FONT_OPTIONS.filter((f) => f.roles.includes(role));
-  const sample =
-    role === "ui" ? "Projetos · Adicionar artigo · Revisar" : "Os resultados indicam uma associação consistente.";
-
   return (
-    <div className="flex flex-col gap-4" role="radiogroup" aria-label={role === "ui" ? "Fonte da interface" : "Fonte dos artigos"}>
+    <select
+      id={id}
+      value={selected}
+      onChange={async (e) => {
+        applyFont(role, e.target.value);
+        const { ok } = await saveFonts(currentFont("ui"), currentFont("article"));
+        onSaved?.(ok);
+      }}
+      className="field w-full cursor-pointer min-[640px]:w-[260px]"
+    >
       {ORDER.map((cat) => {
         const group = options.filter((f) => f.category === cat);
         if (group.length === 0) return null;
-        return (
-          <div key={cat} className="flex flex-col gap-2">
-            {cat !== "padrao" && <span className="text-xs font-medium text-muted">{CATEGORY_LABEL[cat]}</span>}
-            <div className="grid grid-cols-1 gap-2 min-[560px]:grid-cols-2">
-              {group.map((f) => {
-                const on = f.id === selected;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => {
-                      applyFont(role, f.id);
-                      onChange();
-                    }}
-                    className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left ${
-                      on ? "border-accent bg-tint" : "border-line hover:border-muted"
-                    }`}
-                  >
-                    <span className="text-xs text-muted">
-                      {f.label}
-                      {f.note ? ` · ${f.note}` : ""}
-                    </span>
-                    <span
-                      className="text-[17px] leading-snug"
-                      style={{
-                        fontFamily: sampleFamily(role, f.cssVar),
-                        fontSizeAdjust: f.category === "manuscrita" ? "0.54" : undefined,
-                      }}
-                    >
-                      {sample}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        const items = group.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label}
+          </option>
+        ));
+        return cat === "padrao" ? items : (
+          <optgroup key={cat} label={CATEGORY_LABEL[cat]}>
+            {items}
+          </optgroup>
         );
       })}
-    </div>
+    </select>
   );
 }
 
-/** Perfil > Aparência > Fontes: uma para a interface, outra para os artigos. */
-export function FontSettings() {
-  const [status, setStatus] = useState("");
-  const [pending, start] = useTransition();
-
-  const persist = () =>
-    start(async () => {
-      const { ok } = await saveFonts(current("ui"), current("article"));
-      setStatus(ok ? "Salvo na sua conta" : "Aplicado neste navegador (não foi possível salvar na conta)");
-    });
-
+/** Uma linha de amostra na fonte escolhida (com a nota da fonte). */
+export function FontSample({ role }: { role: FontRole }) {
+  const f = fontById(useFont(role));
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="m-0 text-sm font-medium">Fonte da interface</h3>
-          <span aria-live="polite" className="text-xs text-muted">
-            {pending ? "Salvando…" : status}
-          </span>
-        </div>
-        <p className="m-0 text-[13px] text-muted">Menus, botões, rótulos e títulos das telas.</p>
-        <FontPicker role="ui" onChange={persist} />
-      </div>
-      <div className="flex flex-col gap-3">
-        <h3 className="m-0 text-sm font-medium">Fonte dos artigos</h3>
-        <p className="m-0 text-[13px] text-muted">
-          Título, resumo, campos da ficha, trechos citados, referências, notas e matriz.
-        </p>
-        <FontPicker role="article" onChange={persist} />
-      </div>
-      <div className="flex flex-col gap-2 rounded-xl bg-page p-4">
-        <span className="eyebrow">Prévia</span>
-        <p className="font-article m-0 text-xl leading-snug">O papel do ozônio como medicina integrativa</p>
-        <p className="font-article m-0 text-[15px] leading-relaxed text-muted italic">
-          “Foram caracterizadas 26 revisões sistemáticas, distribuídas em uma matriz com 6 intervenções.”
-        </p>
-        <div className="flex gap-2">
-          <span className="btn min-h-9 px-3 text-[13px]">Aceitar</span>
-          <span className="btn min-h-9 px-3 text-[13px]">Editar</span>
-        </div>
-      </div>
-    </div>
+    <p className={`m-0 text-[15px] leading-snug text-muted ${role === "article" ? "font-article" : ""}`}>
+      {role === "ui" ? "Projetos · Adicionar artigo · Revisar" : "“Os resultados indicam uma associação consistente.”"}
+      {f?.note ? <span className="ml-2 font-sans text-xs">({f.note})</span> : null}
+    </p>
   );
 }

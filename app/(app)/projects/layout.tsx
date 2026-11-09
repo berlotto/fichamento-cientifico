@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { FontSync } from "@/components/font-controls";
+import { SettingsButton } from "@/components/settings-dialog";
 import { ThemeToggle } from "@/components/theme-controls";
 import { requireProfile } from "@/lib/auth";
-import { initialsOf } from "@/lib/citation";
+import { validLanguage } from "@/lib/languages";
 import { createClient } from "@/lib/supabase/server";
 import { NewProjectButton } from "./new-project-button";
 import { ProjectNav } from "./project-nav";
@@ -25,16 +25,17 @@ async function SidebarProjects() {
 async function ProfileLink() {
   const profile = await requireProfile();
   return (
-    <Link
-      href="/profile"
-      className="flex min-h-11 flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-sunk"
-    >
-      <span className="inline-flex size-7 flex-none items-center justify-center rounded-full bg-sunk text-[11px] font-semibold">
-        {initialsOf(profile.fullName, profile.email)}
-      </span>
-      <span className="min-w-0">Perfil</span>
+    <>
+      <SettingsButton
+        profile={{
+          email: profile.email,
+          fullName: profile.fullName,
+          institution: profile.institution,
+          defaultLanguage: validLanguage(profile.defaultLanguage),
+        }}
+      />
       <FontSync ui={profile.fontUi} article={profile.fontArticle} />
-    </Link>
+    </>
   );
 }
 
