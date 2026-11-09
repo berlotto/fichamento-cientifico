@@ -72,7 +72,7 @@ async function ArticleView({ params, searchParams }: Props) {
         >
           <BackIcon />
         </Link>
-        <h1 className="m-0 min-w-0 flex-1 font-serif text-xl leading-tight font-normal">
+        <h1 className="m-0 min-w-0 flex-1 font-article text-xl leading-tight font-normal">
           {article.title ?? article.original_filename}
         </h1>
         <span className={`text-xs font-medium ${TONE_CLASS[status.tone]}`}>{status.label}</span>

@@ -5,7 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 
 export type CurrentUser = { id: string; email: string | null };
 
-export type Profile = CurrentUser & { fullName: string | null; institution: string | null };
+export type Profile = CurrentUser & {
+  fullName: string | null;
+  institution: string | null;
+  /** Fontes escolhidas no perfil (null: nunca escolheu; vale o que está no navegador). */
+  fontUi: string | null;
+  fontArticle: string | null;
+};
 
 /**
  * Camada de acesso: lê e valida a sessão. Lê cookies, então quem chama
@@ -31,5 +37,7 @@ export async function requireProfile(): Promise<Profile> {
     email: data.user.email ?? null,
     fullName: str(meta.full_name),
     institution: str(meta.institution),
+    fontUi: str(meta.font_ui),
+    fontArticle: str(meta.font_article),
   };
 }

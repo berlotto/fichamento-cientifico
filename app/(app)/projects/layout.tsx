@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { FontSync } from "@/components/font-controls";
 import { ThemeToggle } from "@/components/theme-controls";
 import { requireProfile } from "@/lib/auth";
 import { initialsOf } from "@/lib/citation";
@@ -32,6 +33,7 @@ async function ProfileLink() {
         {initialsOf(profile.fullName, profile.email)}
       </span>
       <span className="min-w-0">Perfil</span>
+      <FontSync ui={profile.fontUi} article={profile.fontArticle} />
     </Link>
   );
 }

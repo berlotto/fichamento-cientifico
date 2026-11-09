@@ -68,7 +68,7 @@ export function ArticleList({
             aria-current={active ? "page" : undefined}
             className={`flex flex-col gap-1.5 border-b border-line px-5 py-4 ${active ? "bg-tint" : "hover:bg-page"}`}
           >
-            <span className="font-serif text-base leading-[1.3]">{a.title}</span>
+            <span className="font-article text-base leading-[1.3]">{a.title}</span>
             <span className="flex justify-between gap-3 text-[13px] text-muted">
               <span>{a.cite}</span>
               <span className={`text-xs font-medium ${TONE_CLASS[a.tone]}`}>{a.statusLabel}</span>

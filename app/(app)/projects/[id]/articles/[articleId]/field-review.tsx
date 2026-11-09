@@ -26,7 +26,7 @@ export function Evidence({ field, articleId }: { field: ReviewField; articleId: 
   const page = field.printed_page ?? field.pdf_page;
   return (
     <figure className="m-0 flex flex-col gap-2 border-l-2 border-line pl-4">
-      <blockquote className="m-0 font-serif text-[15px] leading-[1.55] text-muted italic">“{field.quote}”</blockquote>
+      <blockquote className="m-0 font-article text-[15px] leading-[1.55] text-muted italic">“{field.quote}”</blockquote>
       <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         {field.pdf_page ? (
           <Link
@@ -130,7 +130,7 @@ export function FieldReview({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               rows={Math.min(12, Math.max(3, Math.ceil(value.length / 90)))}
-              className="field resize-y p-3 font-serif text-[16px] leading-normal"
+              className="field resize-y p-3 font-article text-[16px] leading-normal"
               required
             />
           </label>
@@ -154,7 +154,7 @@ export function FieldReview({
         </form>
       ) : (
         <>
-          <p className="m-0 font-serif text-[17px] leading-[1.6] text-pretty whitespace-pre-line">{field.value}</p>
+          <p className="m-0 font-article text-[17px] leading-[1.6] text-pretty whitespace-pre-line">{field.value}</p>
           {field.source === "author" ? (
             !field.verified && (
               <p className="m-0 text-xs text-warn">Não foi possível localizar este resumo no texto do PDF.</p>

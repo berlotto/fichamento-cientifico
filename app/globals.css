@@ -58,8 +58,19 @@
   --color-on-accent: var(--on-accent);
   --color-tint: var(--tint);
   --color-warn: var(--warn);
-  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
-  --font-serif: var(--font-newsreader), Georgia, serif;
+  /* font-sans: texto da interface; font-serif: títulos da interface;
+     font-article: conteúdo do artigo. Escolhidos no perfil (lib/fonts.ts). */
+  --font-sans: var(--fx-font-ui);
+  --font-serif: var(--fx-font-ui-display);
+  --font-article: var(--fx-font-article);
+}
+
+/* Fontes padrão do design; data-font-ui / data-font-article no <html> trocam
+   (regras geradas em lib/fonts.ts). */
+:root {
+  --fx-font-ui: var(--font-instrument-sans), system-ui, sans-serif;
+  --fx-font-ui-display: var(--font-newsreader), Georgia, serif;
+  --fx-font-article: var(--font-newsreader), Georgia, serif;
 }
 
 body {
@@ -68,6 +79,12 @@ body {
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.5;
+  /* Manuscritas têm letra pequena: igualam a altura das minúsculas às demais. */
+  font-size-adjust: var(--fx-ui-adjust, none);
+}
+
+.font-article {
+  font-size-adjust: var(--fx-article-adjust, none);
 }
 
 :focus-visible {
