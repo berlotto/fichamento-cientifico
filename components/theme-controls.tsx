@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { THEME_KEY, type Theme } from "@/lib/theme";
-import { SunIcon } from "./icons";
+import { MonitorIcon, MoonIcon, SunIcon } from "./icons";
 
 const listeners = new Set<() => void>();
 
@@ -47,16 +47,62 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
   );
 }
 
-export function ThemeSegmented() {
-  const theme = useTheme();
+type Choice = Theme | "system";
+
+function currentChoice(): Choice {
+  const set = document.documentElement.dataset.theme;
+  return set === "light" || set === "dark" ? set : "system";
+}
+
+/** "Sistema" remove a escolha salva: volta a seguir o sistema operacional. */
+function setChoice(choice: Choice) {
+  if (choice !== "system") return setTheme(choice);
+  delete document.documentElement.dataset.theme;
+  try {
+    localStorage.removeItem(THEME_KEY);
+  } catch {
+    // Sem storage: vale só nesta página.
+  }
+  listeners.forEach((l) => l());
+}
+
+function useChoice(): Choice {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    currentChoice,
+    () => "system",
+  );
+}
+
+/** Tema: sistema, claro ou escuro (ícones, como nas configurações do Claude). */
+export function ThemeChoice() {
+  const choice = useChoice();
+  const opts: { id: Choice; label: string; icon: React.ReactNode }[] = [
+    { id: "system", label: "Seguir o sistema", icon: <MonitorIcon /> },
+    { id: "light", label: "Claro", icon: <SunIcon size={18} /> },
+    { id: "dark", label: "Escuro", icon: <MoonIcon /> },
+  ];
   return (
-    <div className="segmented max-w-[280px]">
-      <button type="button" aria-pressed={theme === "light"} onClick={() => setTheme("light")}>
-        Claro
-      </button>
-      <button type="button" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>
-        Escuro
-      </button>
+    <div className="flex gap-1 rounded-lg bg-sunk p-1" role="radiogroup" aria-label="Tema">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={choice === o.id}
+          aria-label={o.label}
+          title={o.label}
+          onClick={() => setChoice(o.id)}
+          className={`inline-flex size-9 items-center justify-center rounded-md ${
+            choice === o.id ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,.12)]" : "text-muted hover:text-ink"
+          }`}
+        >
+          {o.icon}
+        </button>
+      ))}
     </div>
   );
 }

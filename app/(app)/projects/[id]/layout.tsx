@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { BackIcon } from "@/components/icons";
 import { articleStatus, IN_PROGRESS } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
-import { shortCite } from "@/lib/citation";
+import { displayTitle, shortCite } from "@/lib/citation";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleList } from "./article-list";
 import { AutoRefresh } from "./auto-refresh";
@@ -19,7 +19,7 @@ async function ArticlesPane({ params }: { params: LayoutProps<"/projects/[id]">[
     supabase.from("projects").select("id, name").eq("id", id).maybeSingle(),
     supabase
       .from("articles")
-      .select("id, title, original_filename, authors, year, status, page_count")
+      .select("id, title, subtitle, original_filename, authors, year, status, page_count")
       .eq("project_id", id)
       .order("created_at", { ascending: false }),
   ]);
@@ -29,7 +29,7 @@ async function ArticlesPane({ params }: { params: LayoutProps<"/projects/[id]">[
     const status = articleStatus(a.status);
     return {
       id: a.id,
-      title: a.title ?? a.original_filename ?? "Sem título",
+      title: displayTitle(a) ?? a.original_filename ?? "Sem título",
       cite: shortCite(a) ?? (a.page_count ? `${a.page_count} páginas` : "Sem metadados"),
       statusLabel: status.label,
       tone: status.tone,

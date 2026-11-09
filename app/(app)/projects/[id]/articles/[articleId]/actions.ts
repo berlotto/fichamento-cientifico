@@ -39,6 +39,9 @@ export async function reviewField(
       status,
       reviewed_by: status === "pending" ? null : user.id,
       reviewed_at: status === "pending" ? null : new Date().toISOString(),
+      // Revisão humana assume o campo: deixa de ser "aprovado automaticamente".
+      auto_approved: false,
+      audit_pending: false,
     })
     .eq("article_id", articleId)
     .eq("key", key);
@@ -89,6 +92,8 @@ export async function editField(
       ...(current?.quote !== q ? { quote_translated: null } : {}),
       edited: true,
       status: "accepted",
+      auto_approved: false,
+      audit_pending: false,
       reviewed_by: user.id,
       reviewed_at: new Date().toISOString(),
     })
@@ -174,4 +179,34 @@ export async function deleteArticle(projectId: string, articleId: string): Promi
 
   revalidatePath("/projects", "layout");
   redirect(`/projects/${projectId}`);
+}
+
+/**
+ * Auditoria às cegas de uma aprovação automática: a pessoa escreve a própria
+ * leitura antes de ver o valor e depois diz se o valor aprovado está certo.
+ * Incorreto: o campo volta para revisão.
+ */
+export async function submitAudit(
+  articleId: string,
+  key: string,
+  answer: string,
+  result: "correct" | "incorrect",
+): Promise<ActionResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("article_fields")
+    .update({
+      audit_pending: false,
+      audit_result: result,
+      audit_answer: answer.trim().slice(0, 5000) || null,
+      audited_at: new Date().toISOString(),
+      ...(result === "incorrect" ? { status: "pending", auto_approved: false } : {}),
+    })
+    .eq("article_id", articleId)
+    .eq("key", key)
+    .eq("audit_pending", true);
+  if (error) return { ok: false, error: "Não foi possível salvar a auditoria." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
 }

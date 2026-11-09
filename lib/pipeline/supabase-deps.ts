@@ -1,8 +1,11 @@
 import "server-only";
 
 import { languageByCode } from "@/lib/languages";
-import { extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
+import { BUILTIN_DEFINITIONS } from "@/lib/fields";
+import { DEFAULT_MODEL, extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
+import { crossModel, JUDGE_PROMPT_VERSION, judgeFields, judgeModel } from "@/lib/llm/judge";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { blockedKeys, decide, differentProvider } from "./crosscheck";
 import { buildFieldRows, llmMetadata, statusAfterExtract } from "./extract";
 import { crossrefByDoi, crossrefByTitle, findDoi, mergeMetadata, sameTitle, type BiblioMetadata } from "./metadata";
 import { parsePdf } from "./parse";
@@ -81,7 +84,7 @@ async function safe<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
  * Idempotente: regrava os campos pendentes; campos já revisados pelo usuário
  * (aceitos, editados ou rejeitados) são preservados.
  */
-async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
+async function extractStage(db: AdminClient, queue: Queue, { article_id }: PipelineMessage) {
   const { data: article, error } = await db
     .from("articles")
     .select("id, project_id, metadata_source")
@@ -100,7 +103,7 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
 
   const { data: project, error: prError } = await db
     .from("projects")
-    .select("output_language")
+    .select("output_language, cross_check")
     .eq("id", article.project_id)
     .single();
   if (prError) throw new Error(`ler projeto: ${prError.message}`);
@@ -190,6 +193,136 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
     .update({ ...metadata, status: statusAfterExtract(rows, reviewed.size), error: null })
     .eq("id", article_id);
   if (updError) throw new Error(`atualizar artigo: ${updError.message}`);
+
+  // Verificação automática (segundo extrator + juiz) em mensagem própria: cada estágio cabe no tempo da função.
+  if (rows.length && project.cross_check) await queue.send({ article_id, stage: "crosscheck" });
+}
+
+const CROSS_CANDIDATES = ["google/gemini-3.5-flash", "anthropic/claude-haiku-5.5", "openai/gpt-5-mini"];
+
+/**
+ * Estágio crosscheck (F2): segundo extrator de outro fornecedor + juiz, só nos
+ * campos ainda pendentes. Grava os veredictos e, se o projeto permitir, aprova
+ * sozinho o que passou em tudo (e manda uma amostra para auditoria às cegas).
+ */
+async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage) {
+  const { data: article, error } = await db
+    .from("articles")
+    .select("id, project_id")
+    .eq("id", article_id)
+    .maybeSingle();
+  if (error) throw new Error(`ler artigo: ${error.message}`);
+  if (!article) return;
+
+  const { data: project, error: prError } = await db
+    .from("projects")
+    .select("output_language, cross_check, auto_approve, critical_fields, audit_rate")
+    .eq("id", article.project_id)
+    .single();
+  if (prError) throw new Error(`ler projeto: ${prError.message}`);
+  if (!project.cross_check) return;
+
+  const { data: pending, error: fError } = await db
+    .from("article_fields")
+    .select("key, value, quote, quote_translated, source_value, verified, source")
+    .eq("article_id", article_id)
+    .eq("status", "pending");
+  if (fError) throw new Error(`ler campos: ${fError.message}`);
+  if (!pending?.length) return;
+
+  const [{ data: pages }, { data: custom }, { data: lastRun }, { data: audits }] = await Promise.all([
+    db.from("article_pages").select("pdf_page, printed_page, text").eq("article_id", article_id).order("pdf_page"),
+    db.from("project_fields").select("key, label, instructions").eq("project_id", article.project_id).order("position"),
+    db
+      .from("llm_runs")
+      .select("model")
+      .eq("article_id", article_id)
+      .eq("stage", "extract")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("article_fields")
+      .select("key, audit_result, articles!inner(project_id)")
+      .eq("articles.project_id", article.project_id)
+      .not("audit_result", "is", null),
+  ]);
+  if (!pages?.length) throw new PermanentError("O artigo não tem texto extraído.");
+
+  const primary = lastRun?.model ?? process.env.EXTRACT_MODEL ?? DEFAULT_MODEL;
+  // Configuração explícita (CROSS_MODEL/JUDGE_MODEL) vale como está; sem ela, outro fornecedor.
+  const modelB = process.env.CROSS_MODEL || differentProvider(primary, crossModel(), CROSS_CANDIDATES);
+  const language = languageByCode(project.output_language);
+
+  const b = await extractWithLlm(pages, custom ?? [], language.prompt, modelB);
+  await logRun(db, article_id, "extract_b", b.model, PROMPT_VERSION, b);
+
+  // Juiz: fornecedor diferente do principal e, se possível, também do segundo.
+  const judgeAlt = CROSS_CANDIDATES.filter((m) => m.split("/")[0] !== modelB.split("/")[0]);
+  const modelJudge = process.env.JUDGE_MODEL || differentProvider(primary, judgeModel(), judgeAlt);
+  const definitions = new Map((custom ?? []).map((c) => [c.key, c.instructions || c.label]));
+  const judged = await judgeFields(
+    pending.map((f) => ({
+      key: f.key,
+      definition: BUILTIN_DEFINITIONS[f.key] ?? definitions.get(f.key) ?? f.key,
+      value_a: f.value,
+      value_b: b.extraction.fields[f.key]?.value ?? null,
+      // Resumo do autor: o "trecho" é o resumo original inteiro (o quote guarda só o começo).
+      quote: f.source === "author" ? (f.source_value ?? f.value) : f.quote,
+      quote_translated: f.source === "author" ? null : f.quote_translated,
+    })),
+    modelJudge,
+  );
+  await logRun(db, article_id, "judge", judged.model, JUDGE_PROMPT_VERSION, judged);
+
+  const updates = decide(
+    pending,
+    new Map(pending.map((f) => [f.key, b.extraction.fields[f.key]?.value?.trim() || null])),
+    judged.verdicts,
+    {
+      autoApprove: project.auto_approve,
+      critical: new Set(project.critical_fields),
+      auditRate: Number(project.audit_rate),
+      blocked: blockedKeys((audits ?? []).flatMap((a) => (a.audit_result ? [{ key: a.key, result: a.audit_result as "correct" | "incorrect" }] : []))),
+    },
+  );
+
+  for (const u of updates) {
+    const { error: uError } = await db
+      .from("article_fields")
+      .update({
+        value_b: u.value_b,
+        model_b: b.model,
+        agrees: u.agrees,
+        supported: u.supported,
+        from_study: u.from_study,
+        judge_note: u.judge_note,
+        auto_approved: u.auto_approved,
+        audit_pending: u.audit_pending,
+        ...(u.auto_approved ? { status: "accepted", reviewed_at: new Date().toISOString() } : {}),
+      })
+      .eq("article_id", article_id)
+      .eq("key", u.key)
+      // O usuário pode ter revisado enquanto a verificação rodava: não sobrescreve.
+      .eq("status", "pending");
+    if (uError) throw new Error(`gravar verificação: ${uError.message}`);
+  }
+}
+
+type RunInfo = { inputTokens?: number; outputTokens?: number; costUsd: number | null; latencyMs: number };
+
+async function logRun(db: AdminClient, article_id: string, stage: string, model: string, version: string, r: RunInfo) {
+  const { error } = await db.from("llm_runs").insert({
+    article_id,
+    stage,
+    model,
+    prompt_version: version,
+    input_tokens: r.inputTokens ?? null,
+    output_tokens: r.outputTokens ?? null,
+    cost_usd: r.costUsd,
+    latency_ms: r.latencyMs,
+  });
+  if (error) console.error(`[worker] llm_runs ${article_id}: ${error.message}`);
 }
 
 export function supabaseWorkerDeps(db: AdminClient): WorkerDeps {
@@ -198,7 +331,8 @@ export function supabaseWorkerDeps(db: AdminClient): WorkerDeps {
     queue,
     handlers: {
       parse: (m) => parseStage(db, queue, m),
-      extract: (m) => extractStage(db, m),
+      extract: (m) => extractStage(db, queue, m),
+      crosscheck: (m) => crosscheckStage(db, m),
     },
     async markFailed(articleId, error) {
       await db.from("articles").update({ status: "failed", error }).eq("id", articleId);

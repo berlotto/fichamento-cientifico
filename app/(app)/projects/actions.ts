@@ -118,3 +118,26 @@ export async function setProjectLanguage(projectId: string, code: string): Promi
   revalidatePath("/projects", "layout");
   return { ok: true };
 }
+
+export type VerificationSettings = {
+  crossCheck: boolean;
+  autoApprove: boolean;
+  critical: string[];
+};
+
+/** Verificação automática do projeto (segundo extrator + juiz, aprovação automática, campos críticos). */
+export async function saveVerification(projectId: string, v: VerificationSettings): Promise<ProjectActionState> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      cross_check: v.crossCheck,
+      // Sem verificação não há base para aprovar sozinho.
+      auto_approve: v.crossCheck && v.autoApprove,
+      critical_fields: [...new Set(v.critical.filter((k) => /^[a-z][a-z0-9_]{1,39}$/.test(k)))].slice(0, 40),
+    })
+    .eq("id", projectId);
+  if (error) return { error: "Não foi possível salvar." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
+}
