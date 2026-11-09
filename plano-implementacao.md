@@ -36,6 +36,10 @@ Em vez do template de campos editável (F1.1) e das tabelas `extractions`/`verdi
 | F1.9 Export | Excel (.xlsx gerado com `fflate`), CSV (`;` + BOM, fórmulas neutralizadas), BibTeX e lista ABNT ordenada |
 | Custo | `llm_runs` com tokens, custo (informado pelo AI Gateway) e latência; total e média na visão do projeto |
 | F1.10 Gold set | A taxa de acerto sai das próprias revisões (valor original do LLM guardado em `llm_value`): tabela "Qualidade da extração" por campo. Gold set independente, preenchido sem ver o LLM, continua na F2 |
+| F2.1–F2.4 Verificação | Feito: estágio `crosscheck` depois do `extract` (mensagem própria). Segundo extrator de outro fornecedor (`CROSS_MODEL`, padrão gemini-3.5-flash) e juiz (`JUDGE_MODEL`, padrão claude-haiku-5.5) que responde por campo: os dois concordam? o trecho sustenta o valor? é deste estudo? Aprovação automática opcional por projeto, nunca em campo crítico (padrão: resultados). Resumo do autor não exige concordância (é tradução) |
+| F2.5 Custo | `llm_runs` por estágio (extract, extract_b, judge) |
+| F2.6 Auditoria | Feito: 10% das aprovações automáticas vão para `/projects/[id]/audit` (a pessoa escreve a própria leitura antes de ver o valor). Campo com erro > 10% em 5+ auditorias perde a aprovação automática |
+| Pendente F2 | F2.7 gold set de 20 artigos com comparação de combinações de modelos; F2.8 MCP |
 | F0 pendentes | Renomear/excluir projeto e artigo; A11 (PDF sai do Storage quando nenhum artigo o usa). Parse testado com 5 PDFs reais (PLOS, BMC, eLife, arXiv, Frontiers): "Page X of Y" passou a contar como página impressa; texto com fonte deslocada (eLife) é consertado. Falta um PDF escaneado e um da SciELO |
 
 ---

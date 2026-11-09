@@ -39,7 +39,7 @@ function deps(
 ) {
   return {
     queue,
-    handlers: { parse, extract },
+    handlers: { parse, extract, crosscheck: async () => {} },
     markFailed: vi.fn(async () => {}),
     recordError: vi.fn(async () => {}),
   };

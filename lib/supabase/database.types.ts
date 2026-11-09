@@ -25,14 +25,14 @@ export type Database = {
           Tables: {
             "article_fields": {
                   Row: {
-                    "article_id": string,"created_at": string,"edited": boolean,"key": string,"language": string | null,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"quote_translated": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"source_value": string | null,"status": string,"value": string,"verified": boolean
+                    "agrees": boolean | null,"article_id": string,"audit_answer": string | null,"audit_pending": boolean,"audit_result": string | null,"audited_at": string | null,"auto_approved": boolean,"created_at": string,"edited": boolean,"from_study": boolean | null,"judge_note": string | null,"key": string,"language": string | null,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"model_b": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"quote_translated": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"source_value": string | null,"status": string,"supported": boolean | null,"value": string,"value_b": string | null,"verified": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "article_id": string,"created_at"?: string,"edited"?: boolean,"key": string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source": string,"source_value"?: string | null,"status"?: string,"value": string,"verified"?: boolean
+                    "agrees"?: boolean | null,"article_id": string,"audit_answer"?: string | null,"audit_pending"?: boolean,"audit_result"?: string | null,"audited_at"?: string | null,"auto_approved"?: boolean,"created_at"?: string,"edited"?: boolean,"from_study"?: boolean | null,"judge_note"?: string | null,"key": string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"model_b"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source": string,"source_value"?: string | null,"status"?: string,"supported"?: boolean | null,"value": string,"value_b"?: string | null,"verified"?: boolean
                   }
                   Update: {
-                    "article_id"?: string,"created_at"?: string,"edited"?: boolean,"key"?: string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source"?: string,"source_value"?: string | null,"status"?: string,"value"?: string,"verified"?: boolean
+                    "agrees"?: boolean | null,"article_id"?: string,"audit_answer"?: string | null,"audit_pending"?: boolean,"audit_result"?: string | null,"audited_at"?: string | null,"auto_approved"?: boolean,"created_at"?: string,"edited"?: boolean,"from_study"?: boolean | null,"judge_note"?: string | null,"key"?: string,"language"?: string | null,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"model_b"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"quote_translated"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source"?: string,"source_value"?: string | null,"status"?: string,"supported"?: boolean | null,"value"?: string,"value_b"?: string | null,"verified"?: boolean
                   }
                   Relationships: [
                     {
@@ -125,14 +125,14 @@ isOneToOne: false
                   ]
                 },"projects": {
                   Row: {
-                    "created_at": string,"id": string,"name": string,"output_language": string,"owner_id": string
+                    "audit_rate": number,"auto_approve": boolean,"created_at": string,"critical_fields": (string)[],"cross_check": boolean,"id": string,"name": string,"output_language": string,"owner_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name": string,"output_language"?: string,"owner_id"?: string
+                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name": string,"output_language"?: string,"owner_id"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string,"output_language"?: string,"owner_id"?: string
+                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name"?: string,"output_language"?: string,"owner_id"?: string
                   }
                   Relationships: [
                     

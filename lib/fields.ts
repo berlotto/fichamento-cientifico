@@ -31,3 +31,13 @@ export function fieldKey(label: string): string {
 }
 
 export type FieldStatus = "pending" | "accepted" | "rejected";
+
+/** O que cada campo fixo deve conter (vai para o juiz da verificação). */
+export const BUILTIN_DEFINITIONS: Record<string, string> = {
+  abstract: "Resumo do artigo (o do autor, quando existe).",
+  subject: "Assunto/tema do estudo em uma frase, com a área.",
+  objective: "Objetivo do estudo.",
+  method: "Desenho do estudo, amostra/participantes, local e período, técnicas ou análises principais.",
+  results: "Principais resultados deste estudo, com os números mais importantes.",
+  conclusions: "Conclusões dos autores deste estudo.",
+};

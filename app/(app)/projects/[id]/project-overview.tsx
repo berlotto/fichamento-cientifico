@@ -5,7 +5,7 @@ import { ProjectLanguage } from "@/components/language-select";
 import { requireUser } from "@/lib/auth";
 import { fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
-import { CustomFields, DeleteProject, ReextractAll, RenameProject } from "./project-settings";
+import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
 
 const usd = (n: number) =>
   n < 0.01 ? `US$ ${n.toFixed(4)}` : n.toLocaleString("pt-BR", { style: "currency", currency: "USD" });
@@ -21,12 +21,16 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
 
   const [{ data: project }, { data: articles }, { data: custom }, { data: fieldRows }, { data: runs }] =
     await Promise.all([
-      supabase.from("projects").select("id, name, output_language").eq("id", projectId).maybeSingle(),
+      supabase
+        .from("projects")
+        .select("id, name, output_language, cross_check, auto_approve, critical_fields")
+        .eq("id", projectId)
+        .maybeSingle(),
       supabase.from("articles").select("id, status").eq("project_id", projectId),
       supabase.from("project_fields").select("key, label, instructions").eq("project_id", projectId).order("position"),
       supabase
         .from("article_fields")
-        .select("key, status, edited, verified, articles!inner(project_id)")
+        .select("key, status, edited, verified, agrees, auto_approved, audit_pending, audit_result, articles!inner(project_id)")
         .eq("articles.project_id", projectId),
       supabase
         .from("llm_runs")
@@ -36,6 +40,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
   if (!project) notFound();
 
   const total = articles?.length ?? 0;
+  const auditQueue = (fieldRows ?? []).filter((f) => f.audit_pending).length;
   const reviewed = (articles ?? []).filter((a) => a.status === "verified").length;
   const extracted = (articles ?? []).filter((a) =>
     ["extracted", "needs_review", "verified", "failed"].includes(a.status),
@@ -53,7 +58,13 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
         label: d.label,
         total: rows.length,
         reviewed: done.length,
-        asIs: done.filter((f) => f.status === "accepted" && !f.edited).length,
+        // Aprovação automática não conta como revisão humana.
+        asIs: done.filter((f) => f.status === "accepted" && !f.edited && !f.auto_approved).length,
+        auto: rows.filter((f) => f.auto_approved).length,
+        checked: rows.filter((f) => f.agrees != null).length,
+        agree: rows.filter((f) => f.agrees === true).length,
+        audited: rows.filter((f) => f.audit_result).length,
+        auditWrong: rows.filter((f) => f.audit_result === "incorrect").length,
         edited: done.filter((f) => f.edited).length,
         rejected: done.filter((f) => f.status === "rejected").length,
         verified: rows.filter((f) => f.verified).length,
@@ -130,6 +141,24 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className="eyebrow">Verificação automática</h2>
+        <VerificationSettings
+          projectId={projectId}
+          initial={{
+            crossCheck: project.cross_check,
+            autoApprove: project.auto_approve,
+            critical: project.critical_fields,
+          }}
+          fields={defs.map((d) => ({ key: d.key, label: d.label }))}
+        />
+        {auditQueue > 0 && (
+          <Link href={`/projects/${projectId}/audit`} className="btn btn-primary w-fit">
+            Auditar {auditQueue} {auditQueue === 1 ? "aprovação automática" : "aprovações automáticas"}
+          </Link>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="eyebrow">Campos personalizados</h2>
         <p className="m-0 text-[13px] text-muted">
           Além de resumo, assunto, objetivo, método, resultados e conclusões. Valem para os próximos artigos; para os
@@ -149,7 +178,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
-                  {["Campo", "Revisados", "Aceitos sem editar", "Editados", "Rejeitados", "Trecho conferido"].map((h) => (
+                  {["Campo", "Revisados", "Aceitos sem editar", "Editados", "Rejeitados", "Trecho conferido", "Modelos concordam", "Aprov. automática", "Erro na auditoria"].map((h) => (
                     <th key={h} className="border-b border-line py-2 pr-4 font-medium">
                       {h}
                     </th>
@@ -167,6 +196,11 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
                     <td className="border-b border-line py-2 pr-4">{pct(q.edited, q.reviewed)}</td>
                     <td className="border-b border-line py-2 pr-4">{pct(q.rejected, q.reviewed)}</td>
                     <td className="border-b border-line py-2 pr-4">{pct(q.verified, q.total)}</td>
+                    <td className="border-b border-line py-2 pr-4">{pct(q.agree, q.checked)}</td>
+                    <td className="border-b border-line py-2 pr-4">{q.auto || "—"}</td>
+                    <td className="border-b border-line py-2 pr-4">
+                      {q.audited ? `${q.auditWrong}/${q.audited}` : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

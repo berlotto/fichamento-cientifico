@@ -19,7 +19,66 @@ export type ReviewField = {
   quote_translated?: string | null;
   /** Texto original quando o valor é tradução (resumo do autor). */
   source_value?: string | null;
+  /** Verificação automática (F2). */
+  value_b?: string | null;
+  agrees?: boolean | null;
+  supported?: boolean | null;
+  from_study?: boolean | null;
+  judge_note?: string | null;
+  auto_approved?: boolean;
 };
+
+const Mark = ({ ok, yes, no }: { ok: boolean | null | undefined; yes: string; no: string }) =>
+  ok == null ? null : ok ? (
+    <span className="inline-flex items-center gap-1 text-accent">
+      <CheckIcon /> {yes}
+    </span>
+  ) : (
+    <span className="text-warn">{no}</span>
+  );
+
+/**
+ * Resultado da verificação automática: os dois modelos concordam, o trecho
+ * sustenta o valor, é deste estudo. Quando discordam, mostra o que o segundo
+ * modelo leu e permite usar a versão dele.
+ */
+function Verification({
+  field,
+  onUseB,
+  busy,
+}: {
+  field: ReviewField;
+  onUseB: () => void;
+  busy: boolean;
+}) {
+  if (field.agrees == null && field.supported == null) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-page px-3 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-medium text-muted">Verificação automática</span>
+        {/* Resumo do autor é tradução: não se compara com o segundo modelo. */}
+        <Mark ok={field.source === "author" ? null : field.agrees} yes="2 modelos concordam" no="os modelos divergem" />
+        <Mark ok={field.supported} yes="trecho sustenta o valor" no="o trecho não sustenta tudo" />
+        <Mark ok={field.from_study} yes="trecho deste estudo" no="trecho pode ser de outro estudo" />
+      </div>
+      {field.judge_note && <p className="m-0 text-muted">{field.judge_note}</p>}
+      {field.agrees === false && field.value_b && field.source !== "author" && (
+        <div className="flex flex-col gap-1.5 border-t border-line pt-2">
+          <span className="text-muted">O segundo modelo leu:</span>
+          <p className="m-0 font-article text-[14px] leading-normal text-ink">{field.value_b}</p>
+          <button
+            type="button"
+            onClick={onUseB}
+            disabled={busy}
+            className="self-start text-xs font-medium text-ink underline underline-offset-2 hover:text-accent"
+          >
+            Usar esta versão
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Link para o visualizador na página do trecho, com o trecho destacado. */
 export const viewerHref = (articleId: string, page: number, quote: string | null) =>
@@ -104,7 +163,10 @@ export function FieldReview({
   const [quote, setQuote] = useState(field.quote ?? "");
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const st = STATUS_LABEL[field.status] ?? STATUS_LABEL.pending;
+  const st =
+    field.status === "accepted" && field.auto_approved
+      ? { text: "Aprovado automaticamente", cls: "text-accent" }
+      : (STATUS_LABEL[field.status] ?? STATUS_LABEL.pending);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string; verified?: boolean }>, after?: () => void) =>
     start(async () => {
@@ -200,6 +262,11 @@ export function FieldReview({
           ) : (
             <Evidence field={field} articleId={articleId} />
           )}
+          <Verification
+            field={field}
+            busy={pending}
+            onUseB={() => field.value_b && run(() => editField(articleId, field.key, field.value_b!, field.quote ?? ""))}
+          />
           <div className="flex flex-wrap gap-2">
             {field.status !== "accepted" && (
               <button

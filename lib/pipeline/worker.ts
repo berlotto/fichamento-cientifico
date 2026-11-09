@@ -7,7 +7,7 @@
  * para poder testar.
  */
 
-export const STAGES = ["parse", "extract"] as const;
+export const STAGES = ["parse", "extract", "crosscheck"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export type PipelineMessage = { article_id: string; stage: Stage };

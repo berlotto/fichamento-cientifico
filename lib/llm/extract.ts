@@ -148,8 +148,9 @@ export async function extractWithLlm(
   pages: PageText[],
   custom: CustomField[] = [],
   lang = "português do Brasil",
+  modelOverride?: string,
 ): Promise<ExtractResult> {
-  const model = process.env.EXTRACT_MODEL || DEFAULT_MODEL;
+  const model = modelOverride || process.env.EXTRACT_MODEL || DEFAULT_MODEL;
   const started = Date.now();
   const { output, usage, providerMetadata } = await generateText({
     model,
