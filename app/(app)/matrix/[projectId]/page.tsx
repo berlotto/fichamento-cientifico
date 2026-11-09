@@ -79,7 +79,7 @@ async function Matrix({ params, searchParams }: Props) {
                   <th className="sticky left-0 z-10 border-r border-b border-line bg-surface p-3 text-left font-normal">
                     <Link href={`/projects/${projectId}/articles/${a.id}`} className="flex flex-col gap-1 hover:underline">
                       <span className="text-xs font-medium text-muted">{shortCite(a) ?? "sem autor/ano"}</span>
-                      <span className="font-serif leading-snug">{fullTitle(a) ?? a.original_filename ?? "Sem título"}</span>
+                      <span className="font-article leading-snug">{fullTitle(a) ?? a.original_filename ?? "Sem título"}</span>
                     </Link>
                   </th>
                   {table.defs.map((d) => {
@@ -91,7 +91,7 @@ async function Matrix({ params, searchParams }: Props) {
                           <span className="text-xs text-muted">{f ? "a revisar" : "—"}</span>
                         ) : (
                           <div className="flex flex-col gap-1.5">
-                            <p className="m-0 line-clamp-6 leading-snug">{f.value}</p>
+                            <p className="font-article m-0 line-clamp-6 leading-snug">{f.value}</p>
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               {f.pdf_page ? (
                                 <Link

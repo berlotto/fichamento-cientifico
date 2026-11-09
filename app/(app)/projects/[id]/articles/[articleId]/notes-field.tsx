@@ -35,7 +35,7 @@ export function NotesField({ articleId, initial }: { articleId: string; initial:
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
         placeholder="Debates, conexões com outros artigos, ideias para a revisão"
-        className="field resize-y p-3 leading-normal"
+        className="field font-article resize-y p-3 text-[15px] leading-normal"
       />
     </section>
   );

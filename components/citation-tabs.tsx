@@ -43,7 +43,7 @@ export function CitationTabs({ refs }: { refs: Record<CitationStyle, RefPart[]> 
         {style === "bibtex" ? (
           <pre className="m-0 min-w-0 flex-1 overflow-x-auto font-mono text-[12.5px] leading-[1.6] whitespace-pre">{text}</pre>
         ) : (
-          <p className="m-0 min-w-0 flex-1 text-sm leading-[1.6] break-words">
+          <p className="font-article m-0 min-w-0 flex-1 text-[15px] leading-[1.6] break-words">
             <Rendered parts={refs[style]} />
           </p>
         )}

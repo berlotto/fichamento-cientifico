@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { BackIcon } from "@/components/icons";
+import { FontSettings, FontSync } from "@/components/font-controls";
 import { ThemeSegmented } from "@/components/theme-controls";
 import { requireProfile } from "@/lib/auth";
 import { initialsOf } from "@/lib/citation";
@@ -24,6 +25,7 @@ async function ProfileHeader() {
         </div>
       </div>
       <ProfileForm name={p.fullName ?? ""} institution={p.institution ?? ""} />
+      <FontSync ui={p.fontUi} article={p.fontArticle} />
     </>
   );
 }
@@ -46,6 +48,7 @@ export default function ProfilePage() {
         <section className="flex flex-col gap-3 border-t border-line pt-6">
           <h2 className="eyebrow">Aparência</h2>
           <ThemeSegmented />
+          <FontSettings />
         </section>
 
         <section className="flex flex-col gap-3 border-t border-line pt-6">

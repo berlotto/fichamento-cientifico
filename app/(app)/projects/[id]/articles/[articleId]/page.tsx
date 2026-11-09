@@ -97,10 +97,10 @@ async function Ficha({ params }: Pick<Props, "params">) {
         )}
 
         <div className="flex flex-col gap-2">
-          <h1 className="m-0 font-serif text-[34px] leading-[1.15] font-normal tracking-[-0.01em] text-pretty max-[860px]:text-[28px]">
+          <h1 className="m-0 font-article text-[34px] leading-[1.15] font-normal tracking-[-0.01em] text-pretty max-[860px]:text-[28px]">
             {a.title ?? a.original_filename ?? "Sem título"}
           </h1>
-          {a.subtitle && <p className="m-0 font-serif text-xl leading-snug text-muted text-pretty">{a.subtitle}</p>}
+          {a.subtitle && <p className="m-0 font-article text-xl leading-snug text-muted text-pretty">{a.subtitle}</p>}
         </div>
 
         {authors.length > 0 ? (
