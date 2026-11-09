@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locateQuote, numbersInQuote, resolvePage } from "./verify";
+import { findQuoteRange, locateQuote, numbersInQuote, resolvePage } from "./verify";
 
 const pages = [
   {
@@ -82,5 +82,23 @@ describe("numbersInQuote", () => {
 
   it("valor sem números passa", () => {
     expect(numbersInQuote("coorte prospectiva", "a prospective cohort study")).toBe(true);
+  });
+});
+
+describe("findQuoteRange", () => {
+  const text = "Resultados. A incidên-\ncia foi 12,5% maior\nno grupo exposto ao ozônio durante o estudo.";
+  it("acha o trecho apesar de quebra de linha e pontuação", () => {
+    // Limitação conhecida: palavra hifenizada na quebra de linha não casa (só não destaca).
+    expect(findQuoteRange(text, "A incidência foi 12,5% maior no grupo exposto")).toBeNull();
+    const r2 = findQuoteRange(text, "foi 12,5% maior no grupo exposto ao ozônio")!;
+    expect(text.slice(r2[0], r2[1])).toBe("foi 12,5% maior\nno grupo exposto ao ozônio");
+  });
+  it("trecho que continua na página seguinte: destaca o começo", () => {
+    const r = findQuoteRange(text, "no grupo exposto ao ozônio durante o estudo e seguiu na outra página com mais palavras")!;
+    expect(text.slice(r[0], r[1])).toBe("no grupo exposto ao ozônio durante");
+  });
+  it("trecho curto ou ausente: null", () => {
+    expect(findQuoteRange(text, "ozônio")).toBeNull();
+    expect(findQuoteRange(text, "nada disso aparece aqui")).toBeNull();
   });
 });

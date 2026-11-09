@@ -37,6 +37,39 @@ export function parseAuthors(raw: unknown): Author[] {
   });
 }
 
+/**
+ * Autores digitados à mão, um por linha: "Sobrenome, Prenomes" ou "Prenomes Sobrenome".
+ * Sem vírgula, a última palavra é o sobrenome.
+ */
+export function parseAuthorLines(text: string): Author[] {
+  return text
+    .split(/\r?\n|;/)
+    .map((l) => l.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .slice(0, 100)
+    .map((l) => {
+      const comma = l.indexOf(",");
+      if (comma > 0) {
+        const family = l.slice(0, comma).trim();
+        const given = l.slice(comma + 1).trim();
+        return given ? { family, given } : { family };
+      }
+      const parts = l.split(" ");
+      if (parts.length === 1) return { family: parts[0] };
+      return { family: parts[parts.length - 1], given: parts.slice(0, -1).join(" ") };
+    })
+    .filter((a) => a.family.length > 0);
+}
+
+/**
+ * Inverso de parseAuthorLines, para preencher o formulário. Autor institucional
+ * com espaço ("Grupo X") ganha vírgula no fim para não virar prenome + sobrenome.
+ */
+export const authorLines = (raw: unknown) =>
+  parseAuthors(raw)
+    .map((a) => (a.given ? `${a.family}, ${a.given}` : a.family.includes(" ") ? `${a.family},` : a.family))
+    .join("\n");
+
 /** "Moraes et al., 2022" · "Lima; Prado, 2020" · "Carvalho, 2018". Null sem autor e ano. */
 export function shortCite(article: CitableArticle, upper = false): string | null {
   const authors = parseAuthors(article.authors);

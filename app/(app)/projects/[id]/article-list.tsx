@@ -34,7 +34,14 @@ export function ArticleList({
       <div className="sticky top-0 z-[1] flex flex-col gap-3 border-b border-line bg-surface px-5 py-4">
         <div className="flex min-h-11 items-center gap-1">
           {backLink}
-          <h2 className="m-0 min-w-0 flex-1 font-serif text-xl leading-tight font-normal">{projectName}</h2>
+          <h2 className="m-0 min-w-0 flex-1 font-serif text-xl leading-tight font-normal">
+            <Link href={`/projects/${projectId}/about`} className="hover:underline" title="Visão do projeto, matriz e exportação">
+              {projectName}
+            </Link>
+          </h2>
+          <Link href={`/matrix/${projectId}`} className="btn min-h-9 px-3 text-[13px]">
+            Matriz
+          </Link>
         </div>
         <div className="relative flex gap-2">
           <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-page px-3 text-muted">

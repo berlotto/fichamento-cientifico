@@ -35,6 +35,9 @@ export interface WorkerDeps {
   log?: (msg: string) => void;
 }
 
+/** Erro em que repetir não adianta: o worker marca o artigo como failed na hora. */
+export class PermanentError extends Error {}
+
 export const MAX_ATTEMPTS = 3;
 /** Visibility timeout: maior que o maxDuration da função (300 s). */
 export const VT_SECONDS = 360;
@@ -87,6 +90,14 @@ export async function runWorker(deps: WorkerDeps, budgetMs: number): Promise<Wor
         await deps.queue.archive(m.msg_id);
         result.processed++;
       } catch (e) {
+        if (e instanceof PermanentError) {
+          // Tentar de novo não resolve (PDF sumiu, sem texto): falha já.
+          log(`falha permanente em ${msg.stage} ${msg.article_id}: ${errorText(e)}`);
+          await deps.markFailed(msg.article_id, errorText(e));
+          await deps.queue.archive(m.msg_id);
+          result.failed++;
+          continue;
+        }
         // A mensagem fica invisível até o VT expirar e então é relida.
         log(`erro em ${msg.stage} ${msg.article_id} (tentativa ${m.read_ct}): ${errorText(e)}`);
         await deps.recordError(msg.article_id, `tentativa ${m.read_ct}: ${errorText(e)}`);

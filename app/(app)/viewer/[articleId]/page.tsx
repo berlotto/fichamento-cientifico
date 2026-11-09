@@ -5,9 +5,25 @@ import { BackIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-controls";
 import { articleStatus, TONE_CLASS } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
+import { findQuoteRange } from "@/lib/pipeline/verify";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = PageProps<"/viewer/[articleId]">;
+
+/** Texto da página com o trecho da ficha destacado (quando veio de um campo). */
+function highlighted(text: string, quote: string | null) {
+  const range = quote ? findQuoteRange(text, quote) : null;
+  if (!range) return text;
+  return (
+    <>
+      {text.slice(0, range[0])}
+      <mark id="trecho" className="rounded-sm bg-tint px-0.5 text-ink ring-1 ring-accent">
+        {text.slice(range[0], range[1])}
+      </mark>
+      {text.slice(range[1])}
+    </>
+  );
+}
 
 /**
  * PDF ao lado do texto extraído da página (F0.9). O PDF usa o visualizador do
@@ -15,7 +31,8 @@ type Props = PageProps<"/viewer/[articleId]">;
  */
 async function ArticleView({ params, searchParams }: Props) {
   const { articleId } = await params;
-  const { p } = await searchParams;
+  const { p, q } = await searchParams;
+  const quote = (Array.isArray(q) ? q[0] : q)?.slice(0, 300) ?? null;
   await requireUser();
   const supabase = await createClient();
 
@@ -97,7 +114,13 @@ async function ArticleView({ params, searchParams }: Props) {
           <p className="text-warn">Não foi possível abrir o PDF.</p>
         )}
         <pre className="min-h-[75vh] overflow-auto rounded-lg border border-line bg-surface p-4 font-mono text-xs whitespace-pre-wrap">
-          {pageRow?.text ?? (pageCount ? "Página sem texto." : "Texto ainda não extraído.")}
+          {pageRow?.text ? (
+            highlighted(pageRow.text, quote)
+          ) : pageCount ? (
+            "Página sem texto."
+          ) : (
+            "Texto ainda não extraído."
+          )}
         </pre>
       </div>
     </main>

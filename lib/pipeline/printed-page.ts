@@ -13,18 +13,25 @@ export type MarginItem = { str: string; y: number };
 
 const MARGIN_LINES = 2;
 const NUMBER_ONLY = /^\d{1,4}$/;
+// "Page 2 of 9" (BMC, Springer), "Página 3 de 10", "p. 4".
+const PAGE_LABEL = /\b(?:page|página|pág\.?|p\.)\s*(\d{1,4})(?:\s+(?:of|de)\s+\d{1,4})?\b/i;
 
-/** Números isolados nas MARGIN_LINES linhas do topo e da base da página. */
+/** Números de página nas MARGIN_LINES linhas do topo e da base: isolados ou em "Page X of Y". */
 export function marginNumbers(items: MarginItem[]): number[] {
   const withText = items.filter((it) => it.str.trim().length > 0);
   if (withText.length === 0) return [];
 
   const ys = [...new Set(withText.map((it) => Math.round(it.y)))].sort((a, b) => b - a);
-  const marginYs = new Set([...ys.slice(0, MARGIN_LINES), ...ys.slice(-MARGIN_LINES)]);
+  const marginYs = [...new Set([...ys.slice(0, MARGIN_LINES), ...ys.slice(-MARGIN_LINES)])];
 
-  return withText
-    .filter((it) => marginYs.has(Math.round(it.y)) && NUMBER_ONLY.test(it.str.trim()))
-    .map((it) => Number(it.str.trim()));
+  const numbers: number[] = [];
+  for (const y of marginYs) {
+    const line = withText.filter((it) => Math.round(it.y) === y);
+    for (const it of line) if (NUMBER_ONLY.test(it.str.trim())) numbers.push(Number(it.str.trim()));
+    const label = PAGE_LABEL.exec(line.map((it) => it.str.trim()).join(" "));
+    if (label) numbers.push(Number(label[1]));
+  }
+  return numbers;
 }
 
 export type PageCandidates = { pdf_page: number; numbers: number[] };

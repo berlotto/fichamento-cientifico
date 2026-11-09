@@ -13,7 +13,11 @@ export const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
 export const PROMPT_VERSION = "extract-v1";
 
 export const FIELD_KEYS = ["abstract", "subject", "objective", "method", "results", "conclusions"] as const;
-export type FieldKey = (typeof FIELD_KEYS)[number];
+/** Chave de campo: um dos 6 fixos ou a chave de um campo personalizado do projeto. */
+export type FieldKey = string;
+
+/** Campo definido pelo usuário no projeto (tabela project_fields). */
+export type CustomField = { key: string; label: string; instructions: string | null };
 
 const Field = z.object({
   value: z.string().nullable().describe("Conteúdo do campo, em português do Brasil. null se o artigo não traz."),
@@ -24,35 +28,56 @@ const Field = z.object({
   pdf_page: z.number().int().nullable().describe("Número n do marcador <<PAGE n>> onde o trecho começa."),
 });
 
-export const ExtractionSchema = z.object({
-  metadata: z.object({
-    title: z.string().nullable().describe("Título principal, sem o subtítulo."),
-    subtitle: z.string().nullable().describe("Subtítulo (o que vem depois de dois-pontos no título), se houver."),
-    authors: z
-      .array(z.object({ family: z.string(), given: z.string().nullable() }))
-      .describe("Autores na ordem do artigo; family = sobrenome, given = prenomes."),
-    year: z.number().int().nullable(),
-    venue: z.string().nullable().describe("Nome do periódico ou evento, por extenso."),
-    volume: z.string().nullable(),
-    issue: z.string().nullable(),
-    pages: z.string().nullable().describe("Intervalo de páginas impressas, como 123-145."),
-    doi: z.string().nullable().describe("DOI do próprio artigo, só se estiver escrito no texto. Nunca invente."),
-    language: z.string().nullable().describe("Código ISO 639-1 da língua do texto principal: pt, en, es..."),
-  }),
-  abstract_from_author: z
-    .boolean()
-    .describe("true se fields.abstract.value é o resumo do autor copiado do artigo; false se você o escreveu."),
-  fields: z.object({
+const Metadata = z.object({
+  title: z.string().nullable().describe("Título principal, sem o subtítulo."),
+  subtitle: z.string().nullable().describe("Subtítulo (o que vem depois de dois-pontos no título), se houver."),
+  authors: z
+    .array(z.object({ family: z.string(), given: z.string().nullable() }))
+    .describe("Autores na ordem do artigo; family = sobrenome, given = prenomes."),
+  year: z.number().int().nullable(),
+  venue: z.string().nullable().describe("Nome do periódico ou evento, por extenso."),
+  volume: z.string().nullable(),
+  issue: z.string().nullable(),
+  pages: z.string().nullable().describe("Intervalo de páginas impressas, como 123-145."),
+  doi: z.string().nullable().describe("DOI do próprio artigo, só se estiver escrito no texto. Nunca invente."),
+  language: z.string().nullable().describe("Código ISO 639-1 da língua do texto principal: pt, en, es..."),
+});
+
+/** Schema da saída: metadados + 6 campos fixos + campos personalizados do projeto. */
+export function extractionSchema(custom: CustomField[] = []) {
+  const fields: Record<string, typeof Field> = {
     abstract: Field,
     subject: Field,
     objective: Field,
     method: Field,
     results: Field,
     conclusions: Field,
-  }),
-});
+  };
+  for (const c of custom) if (!(c.key in fields)) fields[c.key] = Field;
+  return z.object({
+    metadata: Metadata,
+    abstract_from_author: z
+      .boolean()
+      .describe("true se fields.abstract.value é o resumo do autor copiado do artigo; false se você o escreveu."),
+    fields: z.object(fields),
+  });
+}
 
-export type Extraction = z.infer<typeof ExtractionSchema>;
+export type ExtractedField = z.infer<typeof Field>;
+export type Extraction = {
+  metadata: z.infer<typeof Metadata>;
+  abstract_from_author: boolean;
+  fields: Record<string, ExtractedField>;
+};
+
+/** Seção do prompt com os campos personalizados. A definição é do próprio usuário. */
+export function customFieldsPrompt(custom: CustomField[]): string {
+  if (custom.length === 0) return "";
+  const lines = custom.map(
+    (c) => `- ${c.key} (${c.label})${c.instructions?.trim() ? `: ${c.instructions.trim()}` : ""}`,
+  );
+  return `\n\nCampos adicionais deste projeto (mesmas regras de value, quote e pdf_page):\n${lines.join("\n")}`;
+}
 
 export const SYSTEM_PROMPT = `Você faz o fichamento de artigos científicos para uma pesquisadora brasileira.
 
@@ -92,19 +117,36 @@ export function pagesPrompt(pages: PageText[]): string {
   return out;
 }
 
-export type ExtractResult = { extraction: Extraction; model: string; inputTokens?: number; outputTokens?: number };
+export type ExtractResult = {
+  extraction: Extraction;
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd: number | null;
+  latencyMs: number;
+};
 
-export async function extractWithLlm(pages: PageText[]): Promise<ExtractResult> {
+export async function extractWithLlm(pages: PageText[], custom: CustomField[] = []): Promise<ExtractResult> {
   const model = process.env.EXTRACT_MODEL || DEFAULT_MODEL;
-  const { output, usage } = await generateText({
+  const started = Date.now();
+  const { output, usage, providerMetadata } = await generateText({
     model,
     temperature: 0,
-    system: SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT + customFieldsPrompt(custom),
     prompt: `Artigo:\n\n${pagesPrompt(pages)}`,
-    output: Output.object({ schema: ExtractionSchema }),
+    output: Output.object({ schema: extractionSchema(custom) }),
     // Abaixo do maxDuration da função (300 s), com folga para gravar o resultado.
     timeout: 150_000,
     maxRetries: 1,
   });
-  return { extraction: output, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+  // O AI Gateway informa o custo da chamada em USD (string).
+  const cost = Number((providerMetadata?.gateway as { cost?: unknown } | undefined)?.cost);
+  return {
+    extraction: output as Extraction,
+    model,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    costUsd: Number.isFinite(cost) ? cost : null,
+    latencyMs: Date.now() - started,
+  };
 }

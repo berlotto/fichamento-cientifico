@@ -1,11 +1,11 @@
 import "server-only";
 
-import { extractWithLlm } from "@/lib/llm/extract";
+import { extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { buildFieldRows, llmMetadata, statusAfterExtract } from "./extract";
 import { crossrefByDoi, crossrefByTitle, findDoi, mergeMetadata, sameTitle, type BiblioMetadata } from "./metadata";
 import { parsePdf } from "./parse";
-import type { PipelineMessage, Queue, QueueMessage, WorkerDeps } from "./worker";
+import { PermanentError, type PipelineMessage, type Queue, type QueueMessage, type WorkerDeps } from "./worker";
 
 export function supabaseQueue(db: AdminClient): Queue {
   return {
@@ -31,11 +31,16 @@ async function parseStage(db: AdminClient, queue: Queue, { article_id }: Pipelin
     .from("articles")
     .select("id, storage_path")
     .eq("id", article_id)
-    .single();
-  if (error || !article) throw new Error(`artigo não encontrado: ${error?.message ?? article_id}`);
+    .maybeSingle();
+  if (error) throw new Error(`ler artigo: ${error.message}`);
+  if (!article) return; // excluído enquanto estava na fila
 
   const { data: blob, error: dlError } = await db.storage.from("pdfs").download(article.storage_path);
-  if (dlError || !blob) throw new Error(`download: ${dlError?.message}`);
+  if (dlError || !blob) {
+    const missing = /not found/i.test(dlError?.message ?? "");
+    if (missing) throw new PermanentError("PDF não encontrado no armazenamento.");
+    throw new Error(`download: ${dlError?.message}`);
+  }
 
   const { pages, needsOcr } = await parsePdf(new Uint8Array(await blob.arrayBuffer()));
 
@@ -72,15 +77,17 @@ async function safe<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
 /**
  * Estágio extract: LLM lê o artigo (metadados + campos da ficha), o Crossref
  * confirma os metadados e cada trecho citado é conferido no texto do PDF.
- * Idempotente: regrava os campos do artigo a cada execução.
+ * Idempotente: regrava os campos pendentes; campos já revisados pelo usuário
+ * (aceitos, editados ou rejeitados) são preservados.
  */
 async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
   const { data: article, error } = await db
     .from("articles")
-    .select("id, metadata_source")
+    .select("id, project_id, metadata_source")
     .eq("id", article_id)
-    .single();
-  if (error || !article) throw new Error(`artigo não encontrado: ${error?.message ?? article_id}`);
+    .maybeSingle();
+  if (error) throw new Error(`ler artigo: ${error.message}`);
+  if (!article) return; // excluído enquanto estava na fila
 
   const { data: pages, error: pgError } = await db
     .from("article_pages")
@@ -88,10 +95,30 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
     .eq("article_id", article_id)
     .order("pdf_page");
   if (pgError) throw new Error(`ler páginas: ${pgError.message}`);
-  if (!pages?.length) throw new Error("artigo sem texto extraído");
+  if (!pages?.length) throw new PermanentError("O artigo não tem texto extraído.");
 
-  const { extraction, model, inputTokens, outputTokens } = await extractWithLlm(pages);
-  console.error(`[worker] extract ${article_id}: ${model} in=${inputTokens} out=${outputTokens}`);
+  const { data: custom, error: cfError } = await db
+    .from("project_fields")
+    .select("key, label, instructions")
+    .eq("project_id", article.project_id)
+    .order("position");
+  if (cfError) throw new Error(`ler campos do projeto: ${cfError.message}`);
+
+  const { extraction, model, inputTokens, outputTokens, costUsd, latencyMs } = await extractWithLlm(
+    pages,
+    custom ?? [],
+  );
+  const { error: runError } = await db.from("llm_runs").insert({
+    article_id,
+    stage: "extract",
+    model,
+    prompt_version: PROMPT_VERSION,
+    input_tokens: inputTokens ?? null,
+    output_tokens: outputTokens ?? null,
+    cost_usd: costUsd,
+    latency_ms: latencyMs,
+  });
+  if (runError) console.error(`[worker] llm_runs ${article_id}: ${runError.message}`);
 
   const fromLlm = llmMetadata(extraction);
   const doi = findDoi(pages) ?? fromLlm.doi;
@@ -108,8 +135,20 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
   }
   const meta = mergeMetadata(crossref, fromLlm);
 
-  const rows = buildFieldRows(extraction, pages);
-  const { error: delError } = await db.from("article_fields").delete().eq("article_id", article_id);
+  const { data: reviewedRows, error: revError } = await db
+    .from("article_fields")
+    .select("key")
+    .eq("article_id", article_id)
+    .neq("status", "pending");
+  if (revError) throw new Error(`ler campos revisados: ${revError.message}`);
+  const reviewed = new Set((reviewedRows ?? []).map((r) => r.key));
+
+  const rows = buildFieldRows(extraction, pages).filter((r) => !reviewed.has(r.key));
+  const { error: delError } = await db
+    .from("article_fields")
+    .delete()
+    .eq("article_id", article_id)
+    .eq("status", "pending");
   if (delError) throw new Error(`limpar campos: ${delError.message}`);
   if (rows.length) {
     const { error: insError } = await db
@@ -138,7 +177,7 @@ async function extractStage(db: AdminClient, { article_id }: PipelineMessage) {
 
   const { error: updError } = await db
     .from("articles")
-    .update({ ...metadata, status: statusAfterExtract(rows), error: null })
+    .update({ ...metadata, status: statusAfterExtract(rows, reviewed.size), error: null })
     .eq("id", article_id);
   if (updError) throw new Error(`atualizar artigo: ${updError.message}`);
 }

@@ -25,14 +25,14 @@ export type Database = {
           Tables: {
             "article_fields": {
                   Row: {
-                    "article_id": string,"created_at": string,"key": string,"model": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"source": string,"value": string,"verified": boolean
+                    "article_id": string,"created_at": string,"edited": boolean,"key": string,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"status": string,"value": string,"verified": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "article_id": string,"created_at"?: string,"key": string,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"source": string,"value": string,"verified"?: boolean
+                    "article_id": string,"created_at"?: string,"edited"?: boolean,"key": string,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source": string,"status"?: string,"value": string,"verified"?: boolean
                   }
                   Update: {
-                    "article_id"?: string,"created_at"?: string,"key"?: string,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"source"?: string,"value"?: string,"verified"?: boolean
+                    "article_id"?: string,"created_at"?: string,"edited"?: boolean,"key"?: string,"llm_quote"?: string | null,"llm_value"?: string | null,"model"?: string | null,"pdf_page"?: number | null,"printed_page"?: string | null,"quote"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"source"?: string,"status"?: string,"value"?: string,"verified"?: boolean
                   }
                   Relationships: [
                     {
@@ -83,6 +83,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"llm_runs": {
+                  Row: {
+                    "article_id": string,"cost_usd": number | null,"created_at": string,"id": number,"input_tokens": number | null,"latency_ms": number | null,"model": string,"output_tokens": number | null,"prompt_version": string | null,"stage": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_id": string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model": string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage": string
+                  }
+                  Update: {
+                    "article_id"?: string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model"?: string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "llm_runs_article_id_fkey"
+      columns: ["article_id"]
+isOneToOne: false
+      referencedRelation: "articles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"project_fields": {
+                  Row: {
+                    "created_at": string,"instructions": string | null,"key": string,"label": string,"position": number,"project_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"instructions"?: string | null,"key": string,"label": string,"position"?: number,"project_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"instructions"?: string | null,"key"?: string,"label"?: string,"position"?: number,"project_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "project_fields_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"projects": {
                   Row: {
                     "created_at": string,"id": string,"name": string,"owner_id": string
@@ -116,6 +156,9 @@ isOneToOne: false
       } },
 "queue_send":
 { Args: { "delay_seconds"?: number,"msg": Json }; Returns: number
+                           },
+"request_extract":
+{ Args: { "article": string }; Returns: undefined
                            },
 "tick_worker":
 { Args: Record<PropertyKey, never>; Returns: undefined
