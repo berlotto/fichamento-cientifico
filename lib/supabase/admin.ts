@@ -5,7 +5,8 @@ import { publicEnv } from "@/lib/env";
 import type { Database } from "./database.types";
 
 /**
- * Cliente com a chave secreta: IGNORA RLS. Só para o worker.
+ * Cliente com a chave secreta: IGNORA RLS. Só para o worker e para ações de servidor
+ * que já conferiram quem é o usuário (registro de teste de modelo, exclusão de conta).
  * Sempre derive o escopo do article_id da mensagem da fila, nunca de input do cliente.
  */
 export function createAdminClient() {

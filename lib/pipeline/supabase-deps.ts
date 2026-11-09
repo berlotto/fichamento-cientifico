@@ -2,8 +2,9 @@ import "server-only";
 
 import { languageByCode } from "@/lib/languages";
 import { BUILTIN_DEFINITIONS } from "@/lib/fields";
-import { DEFAULT_MODEL, extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
-import { crossModel, JUDGE_PROMPT_VERSION, judgeFields, judgeModel } from "@/lib/llm/judge";
+import { extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
+import { JUDGE_PROMPT_VERSION, judgeFields } from "@/lib/llm/judge";
+import { AUTO_DEFAULTS, loadModelSettings } from "@/lib/llm/models";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { blockedKeys, decide, differentProvider } from "./crosscheck";
 import { buildFieldRows, llmMetadata, statusAfterExtract } from "./extract";
@@ -68,6 +69,16 @@ async function parseStage(db: AdminClient, queue: Queue, { article_id }: Pipelin
   if (!needsOcr) await queue.send({ article_id, stage: "extract" });
 }
 
+/**
+ * Teto de gasto: conta bloqueada, limite mensal do usuário ou do serviço.
+ * Retorna o motivo para não chamar a IA (null: pode).
+ */
+async function llmBlockReason(db: AdminClient, article_id: string): Promise<string | null> {
+  const { data, error } = await db.rpc("llm_block_reason_for_article", { article: article_id });
+  if (error) throw new Error(`conferir limite de gasto: ${error.message}`);
+  return data ?? null;
+}
+
 async function safe<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
   try {
     return await fn();
@@ -116,22 +127,13 @@ async function extractStage(db: AdminClient, queue: Queue, { article_id }: Pipel
     .order("position");
   if (cfError) throw new Error(`ler campos do projeto: ${cfError.message}`);
 
-  const { extraction, model, inputTokens, outputTokens, costUsd, latencyMs } = await extractWithLlm(
-    pages,
-    custom ?? [],
-    language.prompt,
-  );
-  const { error: runError } = await db.from("llm_runs").insert({
-    article_id,
-    stage: "extract",
-    model,
-    prompt_version: PROMPT_VERSION,
-    input_tokens: inputTokens ?? null,
-    output_tokens: outputTokens ?? null,
-    cost_usd: costUsd,
-    latency_ms: latencyMs,
-  });
-  if (runError) console.error(`[worker] llm_runs ${article_id}: ${runError.message}`);
+  const blocked = await llmBlockReason(db, article_id);
+  if (blocked) throw new PermanentError(blocked);
+
+  const models = await loadModelSettings(db);
+  const run = await extractWithLlm(pages, custom ?? [], language.prompt, models.extract.model);
+  const { extraction, model } = run;
+  await logRun(db, article_id, "extract", model, PROMPT_VERSION, run);
 
   const fromLlm = llmMetadata(extraction);
   const doi = findDoi(pages) ?? fromLlm.doi;
@@ -249,9 +251,17 @@ async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage)
   ]);
   if (!pages?.length) throw new PermanentError("O artigo não tem texto extraído.");
 
-  const primary = lastRun?.model ?? process.env.EXTRACT_MODEL ?? DEFAULT_MODEL;
-  // Configuração explícita (CROSS_MODEL/JUDGE_MODEL) vale como está; sem ela, outro fornecedor.
-  const modelB = process.env.CROSS_MODEL || differentProvider(primary, crossModel(), CROSS_CANDIDATES);
+  // Sem orçamento, a ficha fica como está (sem verificação), sem marcar o artigo como falho.
+  const blocked = await llmBlockReason(db, article_id);
+  if (blocked) {
+    console.error(`[worker] crosscheck ${article_id} pulado: ${blocked}`);
+    return;
+  }
+
+  const models = await loadModelSettings(db);
+  const primary = lastRun?.model ?? models.extract.model;
+  // Modelo escolhido (configuração ou ambiente) vale como está; sem escolha, outro fornecedor.
+  const modelB = models.cross?.model ?? differentProvider(primary, AUTO_DEFAULTS.cross, CROSS_CANDIDATES);
   const language = languageByCode(project.output_language);
 
   const b = await extractWithLlm(pages, custom ?? [], language.prompt, modelB);
@@ -259,7 +269,7 @@ async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage)
 
   // Juiz: fornecedor diferente do principal e, se possível, também do segundo.
   const judgeAlt = CROSS_CANDIDATES.filter((m) => m.split("/")[0] !== modelB.split("/")[0]);
-  const modelJudge = process.env.JUDGE_MODEL || differentProvider(primary, judgeModel(), judgeAlt);
+  const modelJudge = models.judge?.model ?? differentProvider(primary, AUTO_DEFAULTS.judge, judgeAlt);
   const definitions = new Map((custom ?? []).map((c) => [c.key, c.instructions || c.label]));
   const judged = await judgeFields(
     pending.map((f) => ({

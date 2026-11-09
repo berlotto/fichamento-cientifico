@@ -100,3 +100,32 @@ export const CloseIcon = ({ size = 20 }: P) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
+
+export const SlidersIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.6} {...base}>
+    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+    <circle cx="16" cy="7" r="2" />
+    <circle cx="10" cy="17" r="2" />
+  </svg>
+);
+
+export const ChartIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.6} {...base}>
+    <path d="M4 20h16M7 16v-4M12 16V7M17 16v-7" />
+  </svg>
+);
+
+export const SparkIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.6} {...base}>
+    <path d="M12 3c.4 3.9 2.1 5.6 6 6-3.9.4-5.6 2.1-6 6-.4-3.9-2.1-5.6-6-6 3.9-.4 5.6-2.1 6-6Z" />
+    <path d="M18.5 15.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5Z" />
+  </svg>
+);
+
+export const UsersIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.6} {...base}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5" />
+    <path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.2 2.6 3.5 5.2" />
+  </svg>
+);

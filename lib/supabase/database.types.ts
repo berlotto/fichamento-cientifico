@@ -23,7 +23,21 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "article_fields": {
+            "app_settings": {
+                  Row: {
+                    "articles_per_day": number,"cross_model": string | null,"extract_model": string | null,"extractions_per_day": number,"id": boolean,"judge_model": string | null,"max_fields_per_project": number,"max_pdfs": number,"max_projects": number,"monthly_budget_usd": number | null,"updated_at": string,"updated_by": string | null,"user_monthly_budget_usd": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "articles_per_day"?: number,"cross_model"?: string | null,"extract_model"?: string | null,"extractions_per_day"?: number,"id"?: boolean,"judge_model"?: string | null,"max_fields_per_project"?: number,"max_pdfs"?: number,"max_projects"?: number,"monthly_budget_usd"?: number | null,"updated_at"?: string,"updated_by"?: string | null,"user_monthly_budget_usd"?: number | null
+                  }
+                  Update: {
+                    "articles_per_day"?: number,"cross_model"?: string | null,"extract_model"?: string | null,"extractions_per_day"?: number,"id"?: boolean,"judge_model"?: string | null,"max_fields_per_project"?: number,"max_pdfs"?: number,"max_projects"?: number,"monthly_budget_usd"?: number | null,"updated_at"?: string,"updated_by"?: string | null,"user_monthly_budget_usd"?: number | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"article_fields": {
                   Row: {
                     "agrees": boolean | null,"article_id": string,"audit_answer": string | null,"audit_pending": boolean,"audit_result": string | null,"audited_at": string | null,"auto_approved": boolean,"created_at": string,"edited": boolean,"from_study": boolean | null,"judge_note": string | null,"key": string,"language": string | null,"llm_quote": string | null,"llm_value": string | null,"model": string | null,"model_b": string | null,"pdf_page": number | null,"printed_page": string | null,"quote": string | null,"quote_translated": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"source": string,"source_value": string | null,"status": string,"supported": boolean | null,"value": string,"value_b": string | null,"verified": boolean
                   }
@@ -85,14 +99,14 @@ isOneToOne: false
                   ]
                 },"llm_runs": {
                   Row: {
-                    "article_id": string,"cost_usd": number | null,"created_at": string,"id": number,"input_tokens": number | null,"latency_ms": number | null,"model": string,"output_tokens": number | null,"prompt_version": string | null,"stage": string
+                    "article_id": string | null,"cost_usd": number | null,"created_at": string,"id": number,"input_tokens": number | null,"latency_ms": number | null,"model": string,"output_tokens": number | null,"prompt_version": string | null,"stage": string,"user_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "article_id": string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model": string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage": string
+                    "article_id"?: string | null,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model": string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage": string,"user_id"?: string | null
                   }
                   Update: {
-                    "article_id"?: string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model"?: string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage"?: string
+                    "article_id"?: string | null,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number | null,"latency_ms"?: number | null,"model"?: string,"output_tokens"?: number | null,"prompt_version"?: string | null,"stage"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -137,13 +151,48 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"user_limits": {
+                  Row: {
+                    "articles_per_day": number | null,"blocked": boolean,"extractions_per_day": number | null,"max_pdfs": number | null,"max_projects": number | null,"monthly_budget_usd": number | null,"note": string | null,"unlimited_budget": boolean,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "articles_per_day"?: number | null,"blocked"?: boolean,"extractions_per_day"?: number | null,"max_pdfs"?: number | null,"max_projects"?: number | null,"monthly_budget_usd"?: number | null,"note"?: string | null,"unlimited_budget"?: boolean,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "articles_per_day"?: number | null,"blocked"?: boolean,"extractions_per_day"?: number | null,"max_pdfs"?: number | null,"max_projects"?: number | null,"monthly_budget_usd"?: number | null,"note"?: string | null,"unlimited_budget"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 }
           }
           Views: {
             [_ in never]: never
           }
           Functions: {
-            "queue_archive":
+            "admin_month_by_model":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "cost_usd": number,"model": string,"runs": number
+            }[]
+                           },
+"admin_user_runs":
+{ Args: { "max_rows"?: number,"uid": string }; Returns: {
+              "article_id": string,"article_title": string,"cost_usd": number,"created_at": string,"id": number,"input_tokens": number,"latency_ms": number,"model": string,"output_tokens": number,"stage": string
+            }[]
+                           },
+"admin_users":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "articles": number,"created_at": string,"email": string,"full_name": string,"is_admin": boolean,"last_sign_in_at": string,"month_cost": number,"month_runs": number,"projects": number,"total_cost": number,"user_id": string
+            }[]
+                           },
+"llm_block_reason_for_article":
+{ Args: { "article": string }; Returns: string
+                           },
+"my_usage":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"queue_archive":
 { Args: { "msg_id": number }; Returns: boolean
                            },
 "queue_read":

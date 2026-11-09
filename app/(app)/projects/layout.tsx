@@ -4,6 +4,7 @@ import { SettingsButton } from "@/components/settings-dialog";
 import { ThemeToggle } from "@/components/theme-controls";
 import { requireProfile } from "@/lib/auth";
 import { validLanguage } from "@/lib/languages";
+import { validCitationStyle } from "@/lib/project-defaults";
 import { createClient } from "@/lib/supabase/server";
 import { NewProjectButton } from "./new-project-button";
 import { ProjectNav } from "./project-nav";
@@ -32,6 +33,9 @@ async function ProfileLink() {
           fullName: profile.fullName,
           institution: profile.institution,
           defaultLanguage: validLanguage(profile.defaultLanguage),
+          citationStyle: validCitationStyle(profile.citationStyle),
+          projectDefaults: profile.projectDefaults,
+          isAdmin: profile.isAdmin,
         }}
       />
       <FontSync ui={profile.fontUi} article={profile.fontArticle} />

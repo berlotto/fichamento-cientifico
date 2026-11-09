@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { CitationTabs } from "@/components/citation-tabs";
 import { BackIcon, CheckIcon, FileIcon, LinkIcon } from "@/components/icons";
 import { articleStatus, IN_PROGRESS, TONE_CLASS } from "@/lib/article-status";
-import { requireUser } from "@/lib/auth";
+import { preferredCitationStyle, requireUser } from "@/lib/auth";
 import { allReferences, authorLines, displayTitle, fullName, isArticleNumber, parseAuthors } from "@/lib/citation";
 import { fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
@@ -55,6 +55,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
   const status = articleStatus(a.status);
   const authors = parseAuthors(a.authors);
   const refs = allReferences(a);
+  const citationStyle = await preferredCitationStyle();
   const language = languageName(a.language);
   const working = IN_PROGRESS.has(a.status);
   const abstract = fields.get("abstract");
@@ -211,7 +212,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
       <section className="flex flex-col gap-3 rounded-xl bg-page p-5">
         <h2 className="eyebrow">Como citar</h2>
         {refs ? (
-          <CitationTabs refs={refs} />
+          <CitationTabs refs={refs} initial={citationStyle} />
         ) : (
           <p className="m-0 text-sm text-muted">
             {working

@@ -4,27 +4,135 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { signOut } from "@/app/(auth)/login/actions";
 import { BackupButton } from "@/app/(app)/profile/backup-button";
-import { changePassword, saveAccount } from "@/app/(app)/profile/actions";
+import {
+  changePassword,
+  deleteAccount,
+  saveAccount,
+  saveCitationStyle,
+  saveProjectDefaults,
+  signOutOthers,
+} from "@/app/(app)/profile/actions";
 import { initialsOf } from "@/lib/citation";
+import { BUILTIN_FIELDS } from "@/lib/fields";
+import type { CitationStyleChoice, ProjectDefaults } from "@/lib/project-defaults";
+import { AdminAiSection } from "./admin-ai";
+import { AdminUsersSection } from "./admin-users";
 import { FontSample, FontSelect } from "./font-controls";
-import { CloseIcon, DatabaseIcon, GearIcon, UserIcon } from "./icons";
+import {
+  ChartIcon,
+  CloseIcon,
+  DatabaseIcon,
+  GearIcon,
+  SlidersIcon,
+  SparkIcon,
+  UserIcon,
+  UsersIcon,
+} from "./icons";
 import { DefaultLanguage } from "./language-select";
 import { ThemeChoice } from "./theme-controls";
+import { UsageSection } from "./usage-section";
+import { VerificationControls } from "./verification-controls";
 
 export type SettingsProfile = {
   email: string | null;
   fullName: string | null;
   institution: string | null;
   defaultLanguage: string;
+  citationStyle: CitationStyleChoice;
+  projectDefaults: ProjectDefaults;
+  isAdmin: boolean;
 };
 
-type Section = "geral" | "conta" | "dados";
+type Section = "geral" | "projetos" | "conta" | "uso" | "dados" | "ia" | "usuarios";
 
-const SECTIONS: { id: Section; label: string; icon: ReactNode }[] = [
+const SECTIONS: { id: Section; label: string; icon: ReactNode; admin?: boolean }[] = [
   { id: "geral", label: "Geral", icon: <GearIcon /> },
+  { id: "projetos", label: "Projetos", icon: <SlidersIcon /> },
   { id: "conta", label: "Conta", icon: <UserIcon /> },
+  { id: "uso", label: "Uso", icon: <ChartIcon /> },
   { id: "dados", label: "Dados", icon: <DatabaseIcon /> },
+  { id: "ia", label: "IA", icon: <SparkIcon />, admin: true },
+  { id: "usuarios", label: "Usuários", icon: <UsersIcon />, admin: true },
 ];
+
+const CITATION_LABELS: Record<CitationStyleChoice, string> = {
+  abnt: "ABNT (NBR 6023)",
+  apa: "APA 7",
+  vancouver: "Vancouver",
+  bibtex: "BibTeX",
+};
+
+function CitationStyleSelect({ initial }: { initial: CitationStyleChoice }) {
+  const router = useRouter();
+  const [value, setValue] = useState(initial);
+  const [msg, setMsg] = useState("");
+  const [pending, start] = useTransition();
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <select
+        id="fx-citacao"
+        value={value}
+        disabled={pending}
+        className="field min-w-[220px] cursor-pointer"
+        onChange={(e) => {
+          const v = e.target.value as CitationStyleChoice;
+          setValue(v);
+          start(async () => {
+            const r = await saveCitationStyle(v);
+            setMsg(r.ok ? "Salvo." : "Não foi possível salvar.");
+            // A ficha e a exportação abertas atrás da modal passam a usar a norma.
+            if (r.ok) router.refresh();
+          });
+        }}
+      >
+        {(Object.keys(CITATION_LABELS) as CitationStyleChoice[]).map((k) => (
+          <option key={k} value={k}>
+            {CITATION_LABELS[k]}
+          </option>
+        ))}
+      </select>
+      <span aria-live="polite" className="text-xs text-muted">
+        {pending ? "Salvando…" : msg}
+      </span>
+    </div>
+  );
+}
+
+function ProjectsSection({ profile }: { profile: SettingsProfile }) {
+  const [v, setV] = useState(profile.projectDefaults);
+  const [saved, setSaved] = useState(profile.projectDefaults);
+  const [msg, setMsg] = useState("");
+  const [pending, start] = useTransition();
+  const dirty = JSON.stringify(v) !== JSON.stringify(saved);
+  return (
+    <>
+      <Heading>Padrões dos projetos novos</Heading>
+      <p className="m-0 mb-4 text-[13px] text-muted">
+        Valem para os projetos que você criar daqui em diante. Cada projeto pode mudar os seus, na visão do projeto.
+      </p>
+      <VerificationControls value={v} onChange={setV} fields={BUILTIN_FIELDS.map((f) => ({ ...f }))} disabled={pending} />
+      <div className="flex items-center justify-end gap-3 pt-5">
+        <span aria-live="polite" className="text-[13px] text-muted">
+          {pending ? "Salvando…" : dirty ? "" : msg}
+        </span>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!dirty || pending}
+          onClick={() =>
+            start(async () => {
+              const r = await saveProjectDefaults(v);
+              setMsg(r.ok ? "Salvo." : "Não foi possível salvar.");
+              if (r.ok) setSaved(v);
+            })
+          }
+        >
+          Salvar
+        </button>
+      </div>
+    </>
+  );
+}
 
 /** Linha de configuração: nome e descrição à esquerda, controle à direita. */
 function Row({ label, htmlFor, hint, children }: { label: string; htmlFor?: string; hint?: ReactNode; children: ReactNode }) {
@@ -81,6 +189,13 @@ function GeneralSection({ profile }: { profile: SettingsProfile }) {
         hint="Padrão dos projetos novos. Cada projeto pode ter o seu, na visão do projeto."
       >
         <DefaultLanguage initial={profile.defaultLanguage} />
+      </Row>
+      <Row
+        label="Norma de referência"
+        htmlFor="fx-citacao"
+        hint="Abre primeiro na ficha e define a lista de referências exportada."
+      >
+        <CitationStyleSelect initial={profile.citationStyle} />
       </Row>
     </>
   );
@@ -224,7 +339,109 @@ function AccountSection({ profile }: { profile: SettingsProfile }) {
           </button>
         </form>
       </Row>
+      <SignOutOthers />
+
+      <Heading>Excluir conta</Heading>
+      <DeleteAccount profile={profile} />
     </>
+  );
+}
+
+function SignOutOthers() {
+  const [msg, setMsg] = useState("");
+  const [pending, start] = useTransition();
+  return (
+    <Row
+      label="Sair dos outros aparelhos"
+      hint={msg || "Encerra as sessões abertas em outros navegadores e aparelhos. Esta continua."}
+    >
+      <button
+        type="button"
+        className="btn"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await signOutOthers();
+            setMsg(r.ok ? "Pronto: as outras sessões foram encerradas." : "Não foi possível encerrar as outras sessões.");
+          })
+        }
+      >
+        {pending ? "Encerrando…" : "Sair dos outros"}
+      </button>
+    </Row>
+  );
+}
+
+function DeleteAccount({ profile }: { profile: SettingsProfile }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+
+  if (profile.isAdmin) {
+    return (
+      <p className="m-0 text-[13px] text-muted">
+        Contas de administrador não podem ser excluídas por aqui. Tire o papel de admin antes, no Supabase.
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <Row label="Excluir minha conta" hint="Apaga projetos, artigos, fichas, notas e PDFs. Não dá para desfazer.">
+        <button type="button" className="btn border-warn text-warn" onClick={() => setOpen(true)}>
+          Excluir conta…
+        </button>
+      </Row>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-3 rounded-xl border border-warn p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        start(async () => {
+          const r = await deleteAccount(password, confirm);
+          if (r?.error) setError(r.error);
+        });
+      }}
+    >
+      <p className="m-0 text-[13px]">
+        Tudo será apagado: projetos, artigos, fichas, notas e PDFs. Faça um backup antes (seção Dados). Não dá para
+        desfazer.
+      </p>
+      <input type="email" name="username" autoComplete="username" value={profile.email ?? ""} readOnly hidden />
+      <label className="flex flex-col gap-1 text-[13px]">
+        Senha
+        <input
+          type="password"
+          className="field"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[13px]">
+        Digite EXCLUIR para confirmar
+        <input className="field" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" required />
+      </label>
+      <div className="flex items-center justify-end gap-3">
+        <span aria-live="polite" className="text-[13px] text-warn">
+          {pending ? "" : error}
+        </span>
+        <button type="button" className="text-[13px] text-muted underline" onClick={() => setOpen(false)}>
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          className="btn border-warn text-warn"
+          disabled={pending || !password || confirm.trim().toUpperCase() !== "EXCLUIR"}
+        >
+          {pending ? "Excluindo…" : "Excluir conta para sempre"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -243,7 +460,7 @@ function DataSection() {
 /**
  * Configurações em modal (estilo Claude Desktop): menu à esquerda, seção à
  * direita. Aparência vale na hora; conta só salva (e recarrega) se mudou.
- * Abre pelo botão do perfil ou por ?config=geral|conta|dados.
+ * Abre pelo botão do perfil ou por ?config=<seção>. Seções de admin só aparecem para admin.
  */
 export function SettingsButton({ profile }: { profile: SettingsProfile }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -251,7 +468,8 @@ export function SettingsButton({ profile }: { profile: SettingsProfile }) {
   const params = useSearchParams();
   // Link direto (ex.: /projects?config=conta) abre a modal naquela seção.
   const fromUrl = params.get("config");
-  const urlSection = SECTIONS.find((s) => s.id === fromUrl)?.id;
+  const sections = SECTIONS.filter((s) => !s.admin || profile.isAdmin);
+  const urlSection = sections.find((s) => s.id === fromUrl)?.id;
   const [chosen, setChosen] = useState<Section | null>(null);
   const section: Section = chosen ?? urlSection ?? "geral";
   const setSection = setChosen;
@@ -310,9 +528,12 @@ export function SettingsButton({ profile }: { profile: SettingsProfile }) {
               aria-label="Seções"
               className="flex w-[220px] flex-none flex-col gap-1 border-r border-line p-3 max-[640px]:w-full max-[640px]:flex-row max-[640px]:overflow-x-auto max-[640px]:border-r-0 max-[640px]:border-b"
             >
-              {SECTIONS.map((s) => (
+              {sections.map((s, i) => (
+                <div key={s.id} className="contents">
+                {s.admin && !sections[i - 1]?.admin && (
+                  <span className="eyebrow mt-4 px-3 pb-1 max-[640px]:hidden">Administração</span>
+                )}
                 <button
-                  key={s.id}
                   type="button"
                   aria-current={section === s.id ? "page" : undefined}
                   onClick={() => setSection(s.id)}
@@ -323,12 +544,17 @@ export function SettingsButton({ profile }: { profile: SettingsProfile }) {
                   {s.icon}
                   {s.label}
                 </button>
+                </div>
               ))}
             </nav>
             <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
               {section === "geral" && <GeneralSection profile={profile} />}
               {section === "conta" && <AccountSection profile={profile} />}
+              {section === "projetos" && <ProjectsSection profile={profile} />}
+              {section === "uso" && <UsageSection />}
               {section === "dados" && <DataSection />}
+              {section === "ia" && profile.isAdmin && <AdminAiSection />}
+              {section === "usuarios" && profile.isAdmin && <AdminUsersSection />}
             </div>
           </div>
         </div>
