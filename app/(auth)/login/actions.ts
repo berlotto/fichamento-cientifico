@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -42,6 +43,34 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
     return { message: "Conta criada. Confirme pelo link enviado ao seu e-mail." };
   }
   redirect("/projects");
+}
+
+/** Origem pública do pedido (localhost, preview ou produção), para o link do e-mail. */
+async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const origin = h.get("origin");
+  if (origin) return origin;
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/**
+ * "Esqueci minha senha": envia o e-mail de recuperação. A resposta é sempre a
+ * mesma, exista ou não a conta, para não revelar quais e-mails estão cadastrados.
+ */
+export async function requestPasswordReset(_: AuthState, formData: FormData): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Informe um e-mail válido." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${await requestOrigin()}/auth/confirm?next=/redefinir-senha`,
+  });
+  if (error && /rate limit/i.test(error.message)) {
+    return { error: "Muitos pedidos seguidos. Espere alguns minutos e tente de novo." };
+  }
+  return { message: "Se houver uma conta com esse e-mail, enviamos um link para criar uma senha nova." };
 }
 
 export async function signOut() {
