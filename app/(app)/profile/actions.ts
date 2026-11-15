@@ -6,6 +6,7 @@ import { validFont } from "@/lib/fonts";
 import { validLanguage } from "@/lib/languages";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { verifyPassword } from "@/lib/supabase/verify-password";
 
 /** Guarda as fontes na conta (vale em outros aparelhos). */
 export async function saveFonts(ui: string, article: string): Promise<{ ok: boolean }> {
@@ -28,7 +29,7 @@ export async function saveDefaultLanguage(code: string): Promise<{ ok: boolean }
 export type PasswordState = { ok?: boolean; error?: string };
 
 /**
- * Troca de senha. Confere a senha atual antes (entrando de novo com ela), para
+ * Troca de senha. Confere a senha atual antes, para
  * que uma sessão esquecida aberta não baste para trocar a senha.
  */
 export async function changePassword(current: string, next: string, confirm: string): Promise<PasswordState> {
@@ -42,8 +43,7 @@ export async function changePassword(current: string, next: string, confirm: str
   const email = data.user?.email;
   if (!email) return { error: "Sessão expirada. Entre de novo." };
 
-  const { error: wrong } = await supabase.auth.signInWithPassword({ email, password: current });
-  if (wrong) return { error: "Senha atual incorreta." };
+  if (!(await verifyPassword(email, current))) return { error: "Senha atual incorreta." };
 
   const { error } = await supabase.auth.updateUser({ password: next });
   if (error) {
@@ -180,8 +180,7 @@ export async function deleteAccount(password: string, confirmation: string): Pro
   if (user.app_metadata?.role === "admin") {
     return { error: "A conta de administrador não pode ser excluída por aqui." };
   }
-  const { error: wrong } = await supabase.auth.signInWithPassword({ email: user.email, password });
-  if (wrong) return { error: "Senha incorreta." };
+  if (!(await verifyPassword(user.email, password))) return { error: "Senha incorreta." };
 
   const admin = createAdminClient();
   // PDFs ficam em <user_id>/...; apaga em lotes.

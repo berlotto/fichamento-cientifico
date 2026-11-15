@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { CAPTCHA_MESSAGE, captchaToken } from "@/lib/captcha";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; message?: string };
@@ -15,8 +16,16 @@ function credentials(formData: FormData) {
 
 export async function signIn(_: AuthState, formData: FormData): Promise<AuthState> {
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(credentials(formData));
-  if (error) return { error: "E-mail ou senha inválidos." };
+  const { error } = await supabase.auth.signInWithPassword({
+    ...credentials(formData),
+    options: { captchaToken: captchaToken(formData) },
+  });
+  if (error) {
+    if (error.code === "invalid_credentials") return { error: "E-mail ou senha inválidos." };
+    if (error.code === "captcha_failed") return { error: CAPTCHA_MESSAGE };
+    console.error("signIn falhou:", error.code, error.status);
+    return { error: "Não foi possível entrar agora. Tente de novo em instantes." };
+  }
   redirect("/projects");
 }
 
@@ -29,10 +38,11 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: fullName ? { full_name: fullName } : {} },
+    options: { data: fullName ? { full_name: fullName } : {}, captchaToken: captchaToken(formData) },
   });
   // Mensagem genérica: não revela se o e-mail já tem conta.
   if (error) {
+    if (error.code === "captcha_failed") return { error: CAPTCHA_MESSAGE };
     return {
       error: /password/i.test(error.message)
         ? "Senha fraca ou já vazada em outro site. Escolha outra."
@@ -66,9 +76,18 @@ export async function requestPasswordReset(_: AuthState, formData: FormData): Pr
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${await requestOrigin()}/auth/confirm?next=/redefinir-senha`,
+    captchaToken: captchaToken(formData),
   });
-  if (error && /rate limit/i.test(error.message)) {
-    return { error: "Muitos pedidos seguidos. Espere alguns minutos e tente de novo." };
+  if (error) {
+    if (error.code === "captcha_failed") return { error: CAPTCHA_MESSAGE };
+    if (error.status === 429 || error.code === "over_email_send_rate_limit") {
+      return { error: "Muitos pedidos seguidos. Espere um minuto e tente de novo." };
+    }
+    // Falha de configuração (ex.: CAPTCHA, SMTP): avisar em vez de fingir que enviou.
+    if (error.code !== "user_not_found") {
+      console.error("resetPasswordForEmail falhou:", error.code, error.status);
+      return { error: "Não foi possível enviar o e-mail agora. Tente mais tarde." };
+    }
   }
   return { message: "Se houver uma conta com esse e-mail, enviamos um link para criar uma senha nova." };
 }
