@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ArticleTools } from "./article-tools";
 import { FieldReview, type ReviewField } from "./field-review";
 import { DetailSkeleton } from "@/components/skeletons";
-import { NotesField } from "./notes-field";
+import { Critique } from "./critique";
 
 type Props = PageProps<"/projects/[id]/articles/[articleId]">;
 
@@ -33,11 +33,11 @@ async function Ficha({ params }: Pick<Props, "params">) {
   await requireUser();
   const supabase = await createClient();
 
-  const [{ data: a }, { data: fieldRows }, { data: custom }, { data: runs }] = await Promise.all([
+  const [{ data: a }, { data: fieldRows }, { data: custom }, { data: runs }, { data: commentRows }] = await Promise.all([
     supabase
       .from("articles")
       .select(
-        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, metadata_source, source_url, status, page_count, error, notes, citekey",
+        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, metadata_source, source_url, status, page_count, error, notes, crit_strengths, crit_weaknesses, crit_relevance, citekey",
       )
       .eq("id", articleId)
       .eq("project_id", id)
@@ -48,10 +48,12 @@ async function Ficha({ params }: Pick<Props, "params">) {
       .eq("article_id", articleId),
     supabase.from("project_fields").select("key, label").eq("project_id", id).order("position"),
     supabase.from("llm_runs").select("cost_usd").eq("article_id", articleId),
+    supabase.from("field_comments").select("field_key, body").eq("article_id", articleId),
   ]);
   if (!a) notFound();
 
   const fields = new Map((fieldRows ?? []).map((f) => [f.key, f as ReviewField]));
+  const comments = new Map((commentRows ?? []).map((c) => [c.field_key, c.body]));
   const defs = fieldDefs(custom ?? []);
   const status = articleStatus(a.status);
   const authors = parseAuthors(a.authors);
@@ -173,11 +175,13 @@ async function Ficha({ params }: Pick<Props, "params">) {
 
       {subject && (
         <div className="rounded-xl bg-tint p-5">
-          <FieldReview field={subject} label="Assunto" articleId={a.id} variant="plain" />
+          <FieldReview field={subject} label="Assunto" articleId={a.id} variant="plain" comment={comments.get("subject")} />
         </div>
       )}
 
-      {abstract && <FieldReview field={abstract} label="Resumo" articleId={a.id} variant="plain" />}
+      {abstract && (
+        <FieldReview field={abstract} label="Resumo" articleId={a.id} variant="plain" comment={comments.get("abstract")} />
+      )}
 
       {body.length > 0 && (
         <section className="flex flex-col gap-4">
@@ -194,7 +198,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
             )}
           </div>
           {body.map(({ def, field }) => (
-            <FieldReview key={def.key} field={field} label={def.label} articleId={a.id} />
+            <FieldReview key={def.key} field={field} label={def.label} articleId={a.id} comment={comments.get(def.key)} />
           ))}
         </section>
       )}
@@ -223,7 +227,15 @@ async function Ficha({ params }: Pick<Props, "params">) {
         )}
       </section>
 
-      <NotesField articleId={a.id} initial={a.notes ?? ""} />
+      <Critique
+        articleId={a.id}
+        initial={{
+          strengths: a.crit_strengths ?? "",
+          weaknesses: a.crit_weaknesses ?? "",
+          relevance: a.crit_relevance ?? "",
+          notes: a.notes ?? "",
+        }}
+      />
 
       {cost > 0 && <p className="m-0 text-xs text-muted">Custo da extração: {usd(cost)}</p>}
     </div>

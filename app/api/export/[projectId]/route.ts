@@ -2,10 +2,15 @@ import { bibFile, loadProjectTable, referenceList, tableRows } from "@/lib/expor
 import { buildCsv, buildXlsx } from "@/lib/export/xlsx";
 import { createClient } from "@/lib/supabase/server";
 
-/** Exporta o projeto: ?format=xlsx | csv | bib | abnt | apa | vancouver. RLS: só projetos do usuário. */
+/**
+ * Exporta o projeto: ?format=xlsx | csv | bib | abnt | apa | vancouver. RLS: só projetos do usuário.
+ * `&comentarios=1` inclui, no xlsx e no CSV, os comentários e a análise crítica (spec 001).
+ */
 export async function GET(request: Request, { params }: RouteContext<"/api/export/[projectId]">) {
   const { projectId } = await params;
-  const format = new URL(request.url).searchParams.get("format") ?? "xlsx";
+  const search = new URL(request.url).searchParams;
+  const format = search.get("format") ?? "xlsx";
+  const critique = search.get("comentarios") === "1";
 
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
@@ -34,7 +39,7 @@ export async function GET(request: Request, { params }: RouteContext<"/api/expor
 
   switch (format) {
     case "csv":
-      return send(buildCsv(tableRows(table).rows), "text/csv; charset=utf-8", "csv");
+      return send(buildCsv(tableRows(table, { critique }).rows), "text/csv; charset=utf-8", "csv");
     case "bib":
       return send(bibFile(table), "application/x-bibtex; charset=utf-8", "bib");
     case "abnt":
@@ -42,7 +47,7 @@ export async function GET(request: Request, { params }: RouteContext<"/api/expor
     case "vancouver":
       return send(referenceList(table, format), "text/plain; charset=utf-8", `referencias-${format}.txt`);
     case "xlsx": {
-      const { rows, widths } = tableRows(table);
+      const { rows, widths } = tableRows(table, { critique });
       const bytes = buildXlsx(table.name, rows, widths);
       return send(
         new Blob([bytes.buffer as ArrayBuffer]),

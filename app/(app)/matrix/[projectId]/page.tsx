@@ -5,7 +5,7 @@ import { BackIcon, DownloadIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-controls";
 import { requireUser } from "@/lib/auth";
 import { fullTitle, shortCite } from "@/lib/citation";
-import { loadProjectTable, pageLabel } from "@/lib/export/project-table";
+import { CRITIQUE_COLUMNS, loadProjectTable, pageLabel } from "@/lib/export/project-table";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = PageProps<"/matrix/[projectId]">;
@@ -13,20 +13,27 @@ type Props = PageProps<"/matrix/[projectId]">;
 /**
  * Matriz do projeto: um artigo por linha, um campo por coluna, cada célula com
  * o valor e a página do trecho. Por padrão só campos revisados; "a revisar"
- * aparece só quando pedido, com selo.
+ * aparece só quando pedido, com selo. "Meus comentários" mostra o comentário
+ * do pesquisador em cada célula e uma coluna com a análise crítica (spec 001).
  */
 async function Matrix({ params, searchParams }: Props) {
   const { projectId } = await params;
-  const { todos } = await searchParams;
+  const { todos, comentarios } = await searchParams;
   const showPending = todos === "1";
+  const showComments = comentarios === "1";
   await requireUser();
   const supabase = await createClient();
   const table = await loadProjectTable(supabase, projectId);
   if (!table) notFound();
 
+  const href = (pending: boolean, comments: boolean) => {
+    const q = [pending && "todos=1", comments && "comentarios=1"].filter(Boolean).join("&");
+    return `/matrix/${projectId}${q ? `?${q}` : ""}`;
+  };
+
   const toggle = (on: boolean, label: string) => (
     <Link
-      href={on ? `/matrix/${projectId}?todos=1` : `/matrix/${projectId}`}
+      href={href(on, showComments)}
       aria-pressed={showPending === on}
       className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${showPending === on ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,.12)]" : "text-muted"}`}
     >
@@ -47,7 +54,18 @@ async function Matrix({ params, searchParams }: Props) {
           {toggle(false, "Só revisados")}
           {toggle(true, "Incluir a revisar")}
         </div>
-        <a href={`/api/export/${projectId}?format=xlsx`} className="btn min-h-9 px-3 text-[13px]" download>
+        <Link
+          href={href(showPending, !showComments)}
+          aria-pressed={showComments}
+          className={`btn min-h-9 px-3 text-[13px] ${showComments ? "border-accent text-accent" : ""}`}
+        >
+          Meus comentários
+        </Link>
+        <a
+          href={`/api/export/${projectId}?format=xlsx${showComments ? "&comentarios=1" : ""}`}
+          className="btn min-h-9 px-3 text-[13px]"
+          download
+        >
           <DownloadIcon size={16} /> Excel
         </a>
         <ThemeToggle />
@@ -71,6 +89,11 @@ async function Matrix({ params, searchParams }: Props) {
                     {d.label}
                   </th>
                 ))}
+                {showComments && (
+                  <th className="sticky top-0 z-10 min-w-[320px] border-b border-line bg-surface p-3 text-left text-xs font-medium text-accent">
+                    Minha análise crítica
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -85,8 +108,10 @@ async function Matrix({ params, searchParams }: Props) {
                   {table.defs.map((d) => {
                     const f = a.fields[d.key];
                     const hidden = !f || (f.status !== "accepted" && !showPending);
+                    const comment = showComments ? a.comments[d.key] : undefined;
                     return (
                       <td key={d.key} className="border-b border-line p-3">
+                        <div className="flex flex-col gap-2">
                         {hidden ? (
                           <span className="text-xs text-muted">{f ? "a revisar" : "—"}</span>
                         ) : (
@@ -107,9 +132,29 @@ async function Matrix({ params, searchParams }: Props) {
                             </div>
                           </div>
                         )}
+                        {comment && (
+                          <p className="m-0 line-clamp-6 border-l-2 border-accent pl-2 text-[13px] leading-snug whitespace-pre-line">
+                            <span className="sr-only">Meu comentário: </span>
+                            {comment}
+                          </p>
+                        )}
+                        </div>
                       </td>
                     );
                   })}
+                  {showComments && (
+                    <td className="border-b border-line p-3">
+                      <dl className="m-0 flex flex-col gap-2 text-[13px] leading-snug">
+                        {CRITIQUE_COLUMNS.filter(([col]) => a[col]).map(([col, label]) => (
+                          <div key={col}>
+                            <dt className="text-xs font-medium text-accent">{label}</dt>
+                            <dd className="m-0 line-clamp-6 whitespace-pre-line">{a[col]}</dd>
+                          </div>
+                        ))}
+                        {CRITIQUE_COLUMNS.every(([col]) => !a[col]) && <span className="text-xs text-muted">—</span>}
+                      </dl>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

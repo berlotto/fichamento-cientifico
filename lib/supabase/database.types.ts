@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"articles": {
                   Row: {
-                    "authors": Json | null,"citekey": string | null,"created_at": string,"doi": string | null,"error": string | null,"id": string,"issue": string | null,"language": string | null,"metadata_source": string | null,"notes": string | null,"original_filename": string | null,"page_count": number | null,"pages": string | null,"project_id": string,"sha256": string,"source_url": string | null,"status": string,"storage_path": string,"subtitle": string | null,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"volume": string | null,"year": number | null,"zotero_key": string | null
+                    "authors": Json | null,"citekey": string | null,"created_at": string,"crit_relevance": string | null,"crit_strengths": string | null,"crit_weaknesses": string | null,"doi": string | null,"error": string | null,"id": string,"issue": string | null,"language": string | null,"metadata_source": string | null,"notes": string | null,"original_filename": string | null,"page_count": number | null,"pages": string | null,"project_id": string,"sha256": string,"source_url": string | null,"status": string,"storage_path": string,"subtitle": string | null,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"volume": string | null,"year": number | null,"zotero_key": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id": string,"sha256": string,"source_url"?: string | null,"status"?: string,"storage_path": string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id": string,"sha256": string,"source_url"?: string | null,"status"?: string,"storage_path": string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Update: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id"?: string,"sha256"?: string,"source_url"?: string | null,"status"?: string,"storage_path"?: string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id"?: string,"sha256"?: string,"source_url"?: string | null,"status"?: string,"storage_path"?: string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Relationships: [
                     {
@@ -94,6 +94,26 @@ isOneToOne: false
       columns: ["project_id"]
 isOneToOne: false
       referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"field_comments": {
+                  Row: {
+                    "article_id": string,"body": string,"field_key": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_id": string,"body": string,"field_key": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "article_id"?: string,"body"?: string,"field_key"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "field_comments_article_id_fkey"
+      columns: ["article_id"]
+isOneToOne: false
+      referencedRelation: "articles"
       referencedColumns: ["id"]
     }
                   ]

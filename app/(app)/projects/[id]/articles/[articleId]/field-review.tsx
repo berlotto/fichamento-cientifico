@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CheckIcon } from "@/components/icons";
-import { editField, reviewField } from "./actions";
+import { editField, reviewField, saveFieldComment } from "./actions";
 
 export type ReviewField = {
   key: string;
@@ -136,6 +136,117 @@ export function Evidence({ field, articleId }: { field: ReviewField; articleId: 
   );
 }
 
+/**
+ * Comentário do pesquisador sobre o campo (spec 001). Visualmente separado do
+ * conteúdo extraído: barra na cor de destaque e rótulo "Meu comentário", nunca
+ * itálico nem com página. Salva ao sair do campo; texto vazio apaga.
+ */
+function FieldComment({
+  articleId,
+  fieldKey,
+  label,
+  initial,
+  open,
+  onClose,
+  onSaved,
+}: {
+  articleId: string;
+  fieldKey: string;
+  label: string;
+  initial: string;
+  open: boolean;
+  onClose: () => void;
+  onSaved: (text: string) => void;
+}) {
+  const [saved, setSaved] = useState(initial);
+  const [value, setValue] = useState(initial);
+  const [msg, setMsg] = useState("");
+  const [pending, start] = useTransition();
+  const id = `fx-comment-${fieldKey}`;
+
+  const save = (after?: () => void) => {
+    if (value.trim() === saved.trim()) {
+      after?.();
+      return;
+    }
+    start(async () => {
+      const r = await saveFieldComment(articleId, fieldKey, value);
+      if (r.ok) {
+        setSaved(value.trim());
+        setValue(value.trim());
+        onSaved(value.trim());
+        after?.();
+      }
+      setMsg(r.ok ? "Salvo" : (r.error ?? "Não foi possível salvar"));
+    });
+  };
+
+  if (!open && !saved) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 border-l-2 border-accent pl-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="text-xs font-medium text-accent">
+          Meu comentário
+        </label>
+        <span aria-live="polite" className="text-xs text-muted">
+          {pending ? "Salvando…" : value !== saved ? "" : msg}
+        </span>
+      </div>
+      {open ? (
+        <>
+          <textarea
+            id={id}
+            autoFocus
+            rows={3}
+            maxLength={5000}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={() => save()}
+            placeholder={`O que você pensa sobre ${label.toLowerCase()} deste artigo`}
+            className="field resize-y p-3 text-[15px] leading-normal"
+          />
+          <div className="flex gap-3 text-xs">
+            <button
+              type="button"
+              className="font-medium text-ink underline underline-offset-2"
+              disabled={pending}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => save(onClose)}
+            >
+              Concluir
+            </button>
+            {saved && (
+              <button
+                type="button"
+                className="text-muted underline underline-offset-2"
+                disabled={pending}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() =>
+                  start(async () => {
+                    const r = await saveFieldComment(articleId, fieldKey, "");
+                    if (r.ok) {
+                      setSaved("");
+                      setValue("");
+                      onSaved("");
+                      onClose();
+                    }
+                    setMsg(r.ok ? "" : (r.error ?? "Não foi possível remover"));
+                  })
+                }
+              >
+                Remover
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="m-0 text-[15px] leading-normal whitespace-pre-line">{saved}</p>
+      )}
+    </div>
+  );
+}
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   accepted: { text: "Aceito", cls: "text-accent" },
   rejected: { text: "Rejeitado", cls: "text-muted" },
@@ -151,13 +262,18 @@ export function FieldReview({
   label,
   articleId,
   variant = "card",
+  comment = "",
 }: {
   field: ReviewField;
   label: string;
   articleId: string;
   variant?: "card" | "plain";
+  /** Comentário do pesquisador sobre este campo (spec 001). */
+  comment?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const [commenting, setCommenting] = useState(false);
+  const [hasComment, setHasComment] = useState(comment !== "");
   const [showSource, setShowSource] = useState(false);
   const [value, setValue] = useState(field.value);
   const [quote, setQuote] = useState(field.quote ?? "");
@@ -267,6 +383,15 @@ export function FieldReview({
             busy={pending}
             onUseB={() => field.value_b && run(() => editField(articleId, field.key, field.value_b!, field.quote ?? ""))}
           />
+          <FieldComment
+            articleId={articleId}
+            fieldKey={field.key}
+            label={label}
+            initial={comment}
+            open={commenting}
+            onClose={() => setCommenting(false)}
+            onSaved={(t) => setHasComment(t !== "")}
+          />
           <div className="flex flex-wrap gap-2">
             {field.status !== "accepted" && (
               <button
@@ -289,6 +414,11 @@ export function FieldReview({
                 onClick={() => run(() => reviewField(articleId, field.key, "rejected"))}
               >
                 Rejeitar
+              </button>
+            )}
+            {!commenting && (
+              <button type="button" className="btn min-h-9 px-3 text-[13px]" onClick={() => setCommenting(true)}>
+                {hasComment ? "Editar comentário" : "Comentar"}
               </button>
             )}
             {field.status === "accepted" && (
