@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { parseAuthorLines } from "@/lib/citation";
 import { normalizeDoi } from "@/lib/pipeline/metadata";
 import { locateQuote, numbersInQuote, resolvePage } from "@/lib/pipeline/verify";
+import { MAX_QUOTE_COMMENT } from "@/lib/quotes";
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
 import { createClient } from "@/lib/supabase/server";
 
@@ -238,6 +239,28 @@ export async function submitAudit(
     .eq("key", key)
     .eq("audit_pending", true);
   if (error) return { ok: false, error: "Não foi possível salvar a auditoria." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
+}
+
+/** Comentário de uma citação marcada à mão (spec 002). Vazio apaga o comentário. */
+export async function saveQuoteComment(quoteId: string, text: string): Promise<ActionResult> {
+  await requireUser();
+  const comment = text.trim().slice(0, MAX_QUOTE_COMMENT) || null;
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("quotes")
+    .update({ comment, updated_at: new Date().toISOString() })
+    .eq("id", quoteId);
+  return error ? { ok: false, error: "Não foi possível salvar o comentário." } : { ok: true };
+}
+
+/** Exclui uma citação marcada à mão. */
+export async function deleteQuote(quoteId: string): Promise<ActionResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.from("quotes").delete().eq("id", quoteId);
+  if (error) return { ok: false, error: "Não foi possível excluir a citação." };
   revalidatePath("/projects", "layout");
   return { ok: true };
 }

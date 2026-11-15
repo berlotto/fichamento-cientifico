@@ -15,7 +15,7 @@ Cada spec tem um **status geral** no cabeçalho e uma tabela **Requisitos** com 
 | Nº | Item | Spec | Status | Requisitos feitos |
 |---|---|---|---|---|
 | 1.1 | Comentário crítico | [001_comentario-critico.md](001_comentario-critico.md) | done | 7/7 |
-| 1.2 | Citações marcadas à mão | [002_citacoes-manuais.md](002_citacoes-manuais.md) | draft | 0/8 |
+| 1.2 | Citações marcadas à mão | [002_citacoes-manuais.md](002_citacoes-manuais.md) | done | 7/8 (R7 parcial) |
 | 1.3 | Tags e temas | [003_tags-temas.md](003_tags-temas.md) | draft | 0/8 |
 | 1.4 | Situação de leitura e relevância | [004_situacao-leitura-relevancia.md](004_situacao-leitura-relevancia.md) | draft | 0/6 |
 | 2.1 | Limitações, lacunas e trabalhos futuros | [005_limitacoes-lacunas.md](005_limitacoes-lacunas.md) | draft | 0/6 |

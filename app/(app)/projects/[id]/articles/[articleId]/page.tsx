@@ -12,6 +12,7 @@ import { ArticleTools } from "./article-tools";
 import { FieldReview, type ReviewField } from "./field-review";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Critique } from "./critique";
+import { Quotes } from "./quotes";
 
 type Props = PageProps<"/projects/[id]/articles/[articleId]">;
 
@@ -33,7 +34,8 @@ async function Ficha({ params }: Pick<Props, "params">) {
   await requireUser();
   const supabase = await createClient();
 
-  const [{ data: a }, { data: fieldRows }, { data: custom }, { data: runs }, { data: commentRows }] = await Promise.all([
+  const [{ data: a }, { data: fieldRows }, { data: custom }, { data: runs }, { data: commentRows }, { data: quoteRows }] =
+    await Promise.all([
     supabase
       .from("articles")
       .select(
@@ -49,6 +51,12 @@ async function Ficha({ params }: Pick<Props, "params">) {
     supabase.from("project_fields").select("key, label").eq("project_id", id).order("position"),
     supabase.from("llm_runs").select("cost_usd").eq("article_id", articleId),
     supabase.from("field_comments").select("field_key, body").eq("article_id", articleId),
+    supabase
+      .from("quotes")
+      .select("id, text, pdf_page, printed_page, comment")
+      .eq("article_id", articleId)
+      .order("pdf_page")
+      .order("created_at"),
   ]);
   if (!a) notFound();
 
@@ -213,6 +221,14 @@ async function Ficha({ params }: Pick<Props, "params">) {
           </p>
         </section>
       )}
+
+      <Quotes
+        articleId={a.id}
+        article={{ authors: a.authors, year: a.year }}
+        quotes={quoteRows ?? []}
+        initialStyle={citationStyle === "bibtex" ? "abnt" : citationStyle}
+        canSelect={(a.page_count ?? 0) > 0}
+      />
 
       <section className="flex flex-col gap-3 rounded-xl bg-page p-5">
         <h2 className="eyebrow">Como citar</h2>
