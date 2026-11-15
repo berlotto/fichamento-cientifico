@@ -39,7 +39,7 @@ function deps(
 ) {
   return {
     queue,
-    handlers: { parse, extract, crosscheck: async () => {} },
+    handlers: { parse, extract, crosscheck: async () => {}, definitions: async () => {} },
     markFailed: vi.fn(async () => {}),
     recordError: vi.fn(async () => {}),
   };
@@ -114,6 +114,30 @@ describe("runWorker", () => {
     const r = await runWorker({ ...deps(q.queue, vi.fn(), extract), now: () => t }, 1000);
     expect(extract).toHaveBeenCalledTimes(1);
     expect(r.processed).toBe(1);
+  });
+});
+
+describe("estágio auxiliar (definitions)", () => {
+  it("desiste sem marcar o artigo como failed nem gravar erro nele", async () => {
+    const q = fakeQueue([{ article_id: ARTICLE, stage: "definitions" }]);
+    const d = {
+      ...deps(q.queue, async () => {}),
+      handlers: {
+        parse: async () => {},
+        extract: async () => {},
+        crosscheck: async () => {},
+        definitions: async () => {
+          throw new Error("modelo indisponível");
+        },
+      },
+    };
+    for (let i = 0; i <= MAX_ATTEMPTS; i++) {
+      q.newTick();
+      await runWorker(d, 10_000);
+    }
+    expect(d.markFailed).not.toHaveBeenCalled();
+    expect(d.recordError).not.toHaveBeenCalled();
+    expect(q.msgs[0].archived).toBe(true);
   });
 });
 

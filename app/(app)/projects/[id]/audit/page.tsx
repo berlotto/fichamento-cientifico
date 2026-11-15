@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { BackIcon } from "@/components/icons";
 import { requireUser } from "@/lib/auth";
 import { displayTitle, shortCite } from "@/lib/citation";
-import { BUILTIN_DEFINITIONS, fieldDefs } from "@/lib/fields";
+import { BUILTIN_DEFINITIONS, fieldDefs, OPTIONAL_KEYS } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
 import { DetailSkeleton } from "@/components/skeletons";
 import { AuditCard } from "./audit-card";
@@ -28,7 +28,7 @@ async function Audit({ params }: Pick<Props, "params">) {
     supabase.from("project_fields").select("key, label, instructions").eq("project_id", id).order("position"),
   ]);
 
-  const labels = new Map(fieldDefs(custom ?? []).map((d) => [d.key, d.label]));
+  const labels = new Map(fieldDefs(custom ?? [], OPTIONAL_KEYS).map((d) => [d.key, d.label]));
   const instructions = new Map((custom ?? []).map((c) => [c.key, c.instructions]));
   const first = queue?.[0];
 

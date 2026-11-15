@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { PlusIcon } from "@/components/icons";
+import { FIELD_TEMPLATES } from "@/lib/field-templates";
 import { createProject, type CreateProjectState } from "./actions";
 
 /** "+" da barra lateral: abre um campo inline para nomear o projeto. */
@@ -33,6 +34,17 @@ export function NewProjectButton() {
             autoFocus
             onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           />
+          <label htmlFor="fx-novo-modelo" className="label">
+            Modelo de campos
+          </label>
+          <select id="fx-novo-modelo" name="template" className="field" defaultValue="">
+            <option value="">Padrão (só os campos da ficha)</option>
+            {FIELD_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id} title={t.summary}>
+                {t.name}
+              </option>
+            ))}
+          </select>
           {state.error && <p className="m-0 text-sm text-warn">{state.error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" className="btn" onClick={() => setOpen(false)}>

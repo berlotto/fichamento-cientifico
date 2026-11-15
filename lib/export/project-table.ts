@@ -13,7 +13,7 @@ import {
   shortCite,
   type CitableArticle,
 } from "@/lib/citation";
-import { fieldDefs, type FieldDef } from "@/lib/fields";
+import { enabledOptional, fieldDefs, type FieldDef } from "@/lib/fields";
 import { readingLabel, relevanceLabel } from "@/lib/reading";
 import { tagFamily, tagPath, type Tag } from "@/lib/tags";
 import type { createClient } from "@/lib/supabase/server";
@@ -86,7 +86,7 @@ export async function loadProjectTable(
     { data: tags },
     { data: taggings },
   ] = await Promise.all([
-    supabase.from("projects").select("name").eq("id", projectId).maybeSingle(),
+    supabase.from("projects").select("name, optional_fields").eq("id", projectId).maybeSingle(),
     supabase.from("project_fields").select("key, label").eq("project_id", projectId).order("position"),
     supabase
       .from("articles")
@@ -159,7 +159,7 @@ export async function loadProjectTable(
   list.sort((x, y) => (shortCite(x) ?? x.title ?? "").localeCompare(shortCite(y) ?? y.title ?? "", "pt-BR"));
   return {
     name: project.name,
-    defs: fieldDefs(custom ?? []),
+    defs: fieldDefs(custom ?? [], enabledOptional(project.optional_fields)),
     articles: list,
     tags: tags ?? [],
     discardedHidden: byTag.length - list.length,
@@ -182,6 +182,8 @@ export const pageLabel = (f: TableField) =>
   f.printed_page ? `p. ${f.printed_page}` : f.pdf_page ? `PDF p. ${f.pdf_page}` : "";
 
 const STATUS: Record<string, string> = { accepted: "revisado", pending: "a revisar" };
+
+export const UNDECLARED = "Não declarado pelos autores";
 
 /** Citações à mão numa célula: "“trecho” (p. 45) — comentário", uma por parágrafo. */
 export function quotesCell(quotes: TableQuote[]): string {
@@ -263,8 +265,10 @@ export function tableRows(t: ProjectTable, opts: { critique?: boolean } = {}): {
     ];
     for (const d of t.defs) {
       const f = a.fields[d.key];
+      // Spec 005: opcional ausente num artigo já extraído = os autores não declaram.
+      const undeclared = !f && d.optional && Object.keys(a.fields).length > 0;
       row.push(
-        f?.value ?? "",
+        f?.value ?? (undeclared ? UNDECLARED : ""),
         f?.quote ?? "",
         f?.quote_translated ?? "",
         f ? pageLabel(f) : "",

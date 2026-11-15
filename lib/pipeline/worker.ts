@@ -7,8 +7,15 @@
  * para poder testar.
  */
 
-export const STAGES = ["parse", "extract", "crosscheck"] as const;
+export const STAGES = ["parse", "extract", "crosscheck", "definitions"] as const;
 export type Stage = (typeof STAGES)[number];
+
+/**
+ * Estágios auxiliares: a ficha já existe quando rodam. Os erros vão só para o
+ * log; o artigo não ganha mensagem de erro nem vira `failed` (spec 006: o
+ * glossário não pode derrubar uma ficha pronta).
+ */
+export const AUXILIARY_STAGES: ReadonlySet<Stage> = new Set<Stage>(["definitions"]);
 
 export type PipelineMessage = { article_id: string; stage: Stage };
 
@@ -79,7 +86,9 @@ export async function runWorker(deps: WorkerDeps, budgetMs: number): Promise<Wor
 
       // read_ct conta esta leitura: 1 na primeira tentativa.
       if (m.read_ct > MAX_ATTEMPTS) {
-        await deps.markFailed(msg.article_id, `estágio ${msg.stage} falhou ${MAX_ATTEMPTS} vezes`);
+        const reason = `estágio ${msg.stage} falhou ${MAX_ATTEMPTS} vezes`;
+        if (AUXILIARY_STAGES.has(msg.stage)) log(`${reason} (${msg.article_id}): desistindo`);
+        else await deps.markFailed(msg.article_id, reason);
         await deps.queue.archive(m.msg_id);
         result.failed++;
         continue;
@@ -93,14 +102,16 @@ export async function runWorker(deps: WorkerDeps, budgetMs: number): Promise<Wor
         if (e instanceof PermanentError) {
           // Tentar de novo não resolve (PDF sumiu, sem texto): falha já.
           log(`falha permanente em ${msg.stage} ${msg.article_id}: ${errorText(e)}`);
-          await deps.markFailed(msg.article_id, errorText(e));
+          if (!AUXILIARY_STAGES.has(msg.stage)) await deps.markFailed(msg.article_id, errorText(e));
           await deps.queue.archive(m.msg_id);
           result.failed++;
           continue;
         }
         // A mensagem fica invisível até o VT expirar e então é relida.
         log(`erro em ${msg.stage} ${msg.article_id} (tentativa ${m.read_ct}): ${errorText(e)}`);
-        await deps.recordError(msg.article_id, `tentativa ${m.read_ct}: ${errorText(e)}`);
+        if (!AUXILIARY_STAGES.has(msg.stage)) {
+          await deps.recordError(msg.article_id, `tentativa ${m.read_ct}: ${errorText(e)}`);
+        }
         result.retried++;
       }
     }

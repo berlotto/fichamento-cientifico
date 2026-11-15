@@ -6,7 +6,7 @@ import { BackIcon, CheckIcon, FileIcon, LinkIcon } from "@/components/icons";
 import { articleStatus, IN_PROGRESS, TONE_CLASS } from "@/lib/article-status";
 import { preferredCitationStyle, requireUser } from "@/lib/auth";
 import { allReferences, authorLines, displayTitle, fullName, isArticleNumber, parseAuthors } from "@/lib/citation";
-import { fieldDefs } from "@/lib/fields";
+import { enabledOptional, fieldDefs } from "@/lib/fields";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleTools } from "./article-tools";
 import { FieldReview, type ReviewField } from "./field-review";
@@ -41,11 +41,13 @@ async function Ficha({ params }: Pick<Props, "params">) {
     { data: a },
     { data: fieldRows },
     { data: custom },
+    { data: projectRow },
     { data: runs },
     { data: commentRows },
     { data: quoteRows },
     { data: tags },
     { data: taggings },
+    { data: concepts },
   ] = await Promise.all([
     supabase
       .from("articles")
@@ -60,6 +62,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
       .select("key, value, quote, quote_translated, source_value, pdf_page, printed_page, verified, source, status, edited, value_b, agrees, supported, from_study, judge_note, auto_approved")
       .eq("article_id", articleId),
     supabase.from("project_fields").select("key, label").eq("project_id", id).order("position"),
+    supabase.from("projects").select("optional_fields").eq("id", id).maybeSingle(),
     supabase.from("llm_runs").select("cost_usd").eq("article_id", articleId),
     supabase.from("field_comments").select("field_key, body").eq("article_id", articleId),
     supabase
@@ -70,12 +73,13 @@ async function Ficha({ params }: Pick<Props, "params">) {
       .order("created_at"),
     supabase.from("tags").select("id, name, parent_id, color").eq("project_id", id),
     supabase.from("taggings").select("id, tag_id, field_key, quote_id").eq("article_id", articleId),
+    supabase.from("concepts").select("id, name").eq("project_id", id).order("name"),
   ]);
   if (!a) notFound();
 
   const fields = new Map((fieldRows ?? []).map((f) => [f.key, f as ReviewField]));
   const comments = new Map((commentRows ?? []).map((c) => [c.field_key, c.body]));
-  const defs = fieldDefs(custom ?? []);
+  const defs = fieldDefs(custom ?? [], enabledOptional(projectRow?.optional_fields));
   const status = articleStatus(a.status);
   const authors = parseAuthors(a.authors);
   const refs = allReferences(a);
@@ -87,6 +91,8 @@ async function Ficha({ params }: Pick<Props, "params">) {
   const body = defs
     .filter((d) => d.key !== "abstract" && d.key !== "subject")
     .flatMap((d) => (fields.has(d.key) ? [{ def: d, field: fields.get(d.key)! }] : []));
+  // Spec 005: campo opcional sem valor depois da extração = os autores não declaram.
+  const undeclared = fields.size > 0 && !working ? defs.filter((d) => d.optional && !fields.has(d.key)) : [];
   const toReview = [...fields.values()].filter((f) => f.status === "pending").length;
   const cost = (runs ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
 
@@ -233,6 +239,12 @@ async function Ficha({ params }: Pick<Props, "params">) {
           {body.map(({ def, field }) => (
             <FieldReview key={def.key} field={field} label={def.label} articleId={a.id} comment={comments.get(def.key)} />
           ))}
+          {undeclared.map((d) => (
+            <div key={d.key} className="flex items-baseline justify-between gap-3 rounded-xl border border-dashed border-line px-5 py-3">
+              <span className="eyebrow">{d.label}</span>
+              <span className="text-sm text-muted">Não declarado pelos autores</span>
+            </div>
+          ))}
         </section>
       )}
 
@@ -253,6 +265,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
         quotes={quoteRows ?? []}
         initialStyle={citationStyle === "bibtex" ? "abnt" : citationStyle}
         canSelect={(a.page_count ?? 0) > 0}
+        concepts={concepts ?? []}
       />
 
       <section className="flex flex-col gap-3 rounded-xl bg-page p-5">

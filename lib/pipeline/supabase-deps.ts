@@ -1,12 +1,14 @@
 import "server-only";
 
 import { languageByCode } from "@/lib/languages";
-import { BUILTIN_DEFINITIONS } from "@/lib/fields";
+import { BUILTIN_DEFINITIONS, enabledOptional } from "@/lib/fields";
+import { DEFINITIONS_PROMPT_VERSION, findDefinitions } from "@/lib/llm/definitions";
 import { extractWithLlm, PROMPT_VERSION } from "@/lib/llm/extract";
 import { JUDGE_PROMPT_VERSION, judgeFields } from "@/lib/llm/judge";
 import { AUTO_DEFAULTS, loadModelSettings } from "@/lib/llm/models";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { blockedKeys, decide, differentProvider } from "./crosscheck";
+import { buildDefinitionRows } from "./definitions";
 import { buildFieldRows, llmMetadata, statusAfterExtract } from "./extract";
 import { crossrefByDoi, crossrefByTitle, findDoi, mergeMetadata, sameTitle, type BiblioMetadata } from "./metadata";
 import { parsePdf } from "./parse";
@@ -114,7 +116,7 @@ async function extractStage(db: AdminClient, queue: Queue, { article_id }: Pipel
 
   const { data: project, error: prError } = await db
     .from("projects")
-    .select("output_language, cross_check")
+    .select("output_language, cross_check, optional_fields")
     .eq("id", article.project_id)
     .single();
   if (prError) throw new Error(`ler projeto: ${prError.message}`);
@@ -131,7 +133,8 @@ async function extractStage(db: AdminClient, queue: Queue, { article_id }: Pipel
   if (blocked) throw new PermanentError(blocked);
 
   const models = await loadModelSettings(db);
-  const run = await extractWithLlm(pages, custom ?? [], language.prompt, models.extract.model);
+  const optional = enabledOptional(project.optional_fields);
+  const run = await extractWithLlm(pages, custom ?? [], language.prompt, models.extract.model, optional);
   const { extraction, model } = run;
   await logRun(db, article_id, "extract", model, PROMPT_VERSION, run);
 
@@ -198,6 +201,13 @@ async function extractStage(db: AdminClient, queue: Queue, { article_id }: Pipel
 
   // Verificação automática (segundo extrator + juiz) em mensagem própria: cada estágio cabe no tempo da função.
   if (rows.length && project.cross_check) await queue.send({ article_id, stage: "crosscheck" });
+
+  // Glossário (spec 006): com conceitos cadastrados, procura as definições depois da ficha.
+  const { count: concepts } = await db
+    .from("concepts")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", article.project_id);
+  if (concepts) await queue.send({ article_id, stage: "definitions" });
 }
 
 const CROSS_CANDIDATES = ["google/gemini-3.5-flash", "anthropic/claude-haiku-5.5", "openai/gpt-5-mini"];
@@ -218,7 +228,7 @@ async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage)
 
   const { data: project, error: prError } = await db
     .from("projects")
-    .select("output_language, cross_check, auto_approve, critical_fields, audit_rate")
+    .select("output_language, cross_check, auto_approve, critical_fields, audit_rate, optional_fields")
     .eq("id", article.project_id)
     .single();
   if (prError) throw new Error(`ler projeto: ${prError.message}`);
@@ -264,7 +274,13 @@ async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage)
   const modelB = models.cross?.model ?? differentProvider(primary, AUTO_DEFAULTS.cross, CROSS_CANDIDATES);
   const language = languageByCode(project.output_language);
 
-  const b = await extractWithLlm(pages, custom ?? [], language.prompt, modelB);
+  const b = await extractWithLlm(
+    pages,
+    custom ?? [],
+    language.prompt,
+    modelB,
+    enabledOptional(project.optional_fields),
+  );
   await logRun(db, article_id, "extract_b", b.model, PROMPT_VERSION, b);
 
   // Juiz: fornecedor diferente do principal e, se possível, também do segundo.
@@ -319,6 +335,64 @@ async function crosscheckStage(db: AdminClient, { article_id }: PipelineMessage)
   }
 }
 
+/**
+ * Estágio definitions (spec 006): procura no artigo as definições dos conceitos
+ * do projeto. Regrava só as pendentes vindas do LLM; as revisadas e as
+ * marcadas à mão ficam, e a busca nova não as repete.
+ */
+async function definitionsStage(db: AdminClient, { article_id }: PipelineMessage) {
+  const { data: article, error } = await db
+    .from("articles")
+    .select("id, project_id")
+    .eq("id", article_id)
+    .maybeSingle();
+  if (error) throw new Error(`ler artigo: ${error.message}`);
+  if (!article) return;
+
+  const [{ data: concepts }, { data: pages }, { data: project }, { data: kept }] = await Promise.all([
+    db.from("concepts").select("id, name").eq("project_id", article.project_id),
+    db.from("article_pages").select("pdf_page, printed_page, text").eq("article_id", article_id).order("pdf_page"),
+    db.from("projects").select("output_language").eq("id", article.project_id).single(),
+    db
+      .from("definitions")
+      .select("concept_id, text")
+      .eq("article_id", article_id)
+      .or("status.neq.pending,source.eq.manual"),
+  ]);
+  if (!concepts?.length) return;
+  if (!pages?.length) throw new PermanentError("O artigo não tem texto extraído.");
+
+  // Sem orçamento, o glossário fica como está, sem marcar o artigo como falho.
+  const blocked = await llmBlockReason(db, article_id);
+  if (blocked) {
+    console.error(`[worker] definitions ${article_id} pulado: ${blocked}`);
+    return;
+  }
+
+  const models = await loadModelSettings(db);
+  const language = languageByCode(project?.output_language);
+  const run = await findDefinitions(
+    pages,
+    concepts.map((c) => c.name),
+    language.prompt,
+    models.extract.model,
+  );
+  await logRun(db, article_id, "definitions", run.model, DEFINITIONS_PROMPT_VERSION, run);
+
+  const rows = buildDefinitionRows(run.definitions, concepts, pages, kept ?? []);
+  const { error: delError } = await db
+    .from("definitions")
+    .delete()
+    .eq("article_id", article_id)
+    .eq("source", "llm")
+    .eq("status", "pending");
+  if (delError) throw new Error(`limpar definições: ${delError.message}`);
+  if (rows.length) {
+    const { error: insError } = await db.from("definitions").insert(rows.map((r) => ({ article_id, ...r })));
+    if (insError) throw new Error(`gravar definições: ${insError.message}`);
+  }
+}
+
 type RunInfo = { inputTokens?: number; outputTokens?: number; costUsd: number | null; latencyMs: number };
 
 async function logRun(db: AdminClient, article_id: string, stage: string, model: string, version: string, r: RunInfo) {
@@ -343,6 +417,7 @@ export function supabaseWorkerDeps(db: AdminClient): WorkerDeps {
       parse: (m) => parseStage(db, queue, m),
       extract: (m) => extractStage(db, queue, m),
       crosscheck: (m) => crosscheckStage(db, m),
+      definitions: (m) => definitionsStage(db, m),
     },
     async markFailed(articleId, error) {
       await db.from("articles").update({ status: "failed", error }).eq("id", articleId);

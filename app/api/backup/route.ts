@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
  * Backup em JSON dos dados do usuário (RLS: só o que é dele).
  * Inclui os campos da ficha (article_fields) com trecho e página, os comentários
  * por campo, a análise crítica (spec 001), as citações à mão (spec 002), as tags
- * (spec 003) e a situação de leitura (spec 004).
+ * (spec 003), a situação de leitura (spec 004), os campos opcionais (spec 005), o
+ * glossário (spec 006) e os campos personalizados.
  * O texto das páginas e os PDFs ficam de fora: são reconstruíveis a partir do PDF.
  */
 export async function GET() {
@@ -12,8 +13,8 @@ export async function GET() {
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const [projects, articles, fields, comments, quotes, tags, taggings] = await Promise.all([
-    supabase.from("projects").select("id, name, created_at").order("created_at"),
+  const [projects, articles, fields, comments, quotes, tags, taggings, concepts, definitions, projectFields] = await Promise.all([
+    supabase.from("projects").select("id, name, optional_fields, created_at").order("created_at"),
     supabase
       .from("articles")
       .select(
@@ -27,15 +28,20 @@ export async function GET() {
     supabase.from("quotes").select("id, article_id, text, pdf_page, printed_page, comment, created_at, updated_at"),
     supabase.from("tags").select("id, project_id, parent_id, name, color, description, created_at"),
     supabase.from("taggings").select("tag_id, article_id, field_key, quote_id, created_at"),
+    supabase.from("concepts").select("id, project_id, name, notes, created_at"),
+    supabase
+      .from("definitions")
+      .select("concept_id, article_id, text, text_translated, pdf_page, printed_page, origin, cited_ref, kind, verified, status, source, created_at"),
+    supabase.from("project_fields").select("project_id, key, label, instructions, position"),
   ]);
-  if ([projects, articles, fields, comments, quotes, tags, taggings].some((r) => r.error)) {
+  if ([projects, articles, fields, comments, quotes, tags, taggings, concepts, definitions, projectFields].some((r) => r.error)) {
     return Response.json({ error: "backup failed" }, { status: 500 });
   }
 
   const now = new Date();
   const body = {
     format: "fichamento-backup",
-    version: 5,
+    version: 6,
     exported_at: now.toISOString(),
     projects: projects.data,
     articles: articles.data,
@@ -44,6 +50,9 @@ export async function GET() {
     quotes: quotes.data,
     tags: tags.data,
     taggings: taggings.data,
+    concepts: concepts.data,
+    definitions: definitions.data,
+    project_fields: projectFields.data,
   };
   const file = `fichamento-backup-${now.toISOString().slice(0, 10)}.json`;
 

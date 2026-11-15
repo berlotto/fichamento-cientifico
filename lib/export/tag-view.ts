@@ -1,7 +1,7 @@
 import "server-only";
 
 import { displayTitle, shortCite } from "@/lib/citation";
-import { fieldDefs } from "@/lib/fields";
+import { fieldDefs, OPTIONAL_KEYS } from "@/lib/fields";
 import type { createClient } from "@/lib/supabase/server";
 import { tagFamily } from "@/lib/tags";
 import type { TagArticle, TagContent, TagItem } from "./tag-export";
@@ -22,7 +22,7 @@ export async function loadTagContent(supabase: Client, projectId: string, tagId:
 
   const family = [...tagFamily(tagId, tags)];
   const names = new Map(tags.map((t) => [t.id, t.name]));
-  const labels = new Map(fieldDefs(custom ?? []).map((d) => [d.key, d.label]));
+  const labels = new Map(fieldDefs(custom ?? [], OPTIONAL_KEYS).map((d) => [d.key, d.label]));
 
   const { data: taggings } = await supabase
     .from("taggings")

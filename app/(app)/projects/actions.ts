@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { BUILTIN_FIELDS, fieldKey } from "@/lib/fields";
+import { templateById, planTemplate } from "@/lib/field-templates";
+import { BUILTIN_FIELDS, enabledOptional, fieldKey, OPTIONAL_KEYS } from "@/lib/fields";
 import { validLanguage } from "@/lib/languages";
 import { AUDIT_RATES, projectDefaultsFrom } from "@/lib/project-defaults";
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateProjectState = { error?: string };
@@ -38,6 +40,10 @@ export async function createProject(
     .single();
   if (error?.code === "P0001") return { error: error.message };
   if (error || !data) return { error: "Não foi possível criar o projeto." };
+
+  // Modelo de campos escolhido na criação (spec 007). Falha aqui não desfaz o projeto.
+  const template = String(formData.get("template") ?? "");
+  if (template && templateById(template)) await applyFieldTemplate(data.id, template);
 
   redirect(`/projects/${data.id}`);
 }
@@ -74,7 +80,9 @@ export async function addProjectField(_: ProjectActionState, formData: FormData)
   const instructions = String(formData.get("instructions") ?? "").trim().slice(0, 1000) || null;
   if (!label) return { error: "Dê um nome ao campo." };
   const key = fieldKey(label);
-  if (BUILTIN_FIELDS.some((f) => f.key === key)) return { error: "Esse campo já existe na ficha." };
+  if (BUILTIN_FIELDS.some((f) => f.key === key) || OPTIONAL_KEYS.includes(key)) {
+    return { error: "Esse campo já existe na ficha (ou nos campos opcionais)." };
+  }
 
   const supabase = await createClient();
   const { count } = await supabase
@@ -152,6 +160,65 @@ export async function saveVerification(projectId: string, v: VerificationSetting
       critical_fields: [...new Set(v.critical.filter((k) => /^[a-z][a-z0-9_]{1,39}$/.test(k)))].slice(0, 40),
       audit_rate: (AUDIT_RATES as readonly number[]).includes(v.auditRate) ? v.auditRate : 0.1,
     })
+    .eq("id", projectId);
+  if (error) return { error: "Não foi possível salvar." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
+}
+
+/** Limite de campos personalizados por projeto (configuração do serviço; o usuário não lê a tabela). */
+async function fieldsLimit(): Promise<number> {
+  const { data } = await createAdminClient().from("app_settings").select("max_fields_per_project").maybeSingle();
+  return data?.max_fields_per_project ?? 20;
+}
+
+/**
+ * Aplica um modelo de campos (spec 007): cria os campos que o projeto ainda não
+ * tem, depois dos que já existem. Nada é apagado; se não couber no limite,
+ * avisa e não cria nenhum.
+ */
+export async function applyFieldTemplate(
+  projectId: string,
+  templateId: string,
+): Promise<ProjectActionState & { added?: number; skipped?: number }> {
+  await requireUser();
+  const template = templateById(templateId);
+  if (!template) return { error: "Modelo desconhecido." };
+  const supabase = await createClient();
+  const { data: project } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle();
+  if (!project) return { error: "Projeto não encontrado." };
+
+  const { data: existing } = await supabase.from("project_fields").select("key").eq("project_id", projectId);
+  const keys = (existing ?? []).map((f) => f.key);
+  const plan = planTemplate(template, keys, await fieldsLimit());
+  if (plan.add.length === 0) return { ok: true, added: 0, skipped: plan.skipped };
+  if (!plan.fits) {
+    return {
+      error: `O modelo ${template.name} precisa de ${plan.add.length} campos novos e só cabem mais ${plan.room} neste projeto. Remova campos ou peça um limite maior.`,
+    };
+  }
+  const { error } = await supabase.from("project_fields").insert(
+    plan.add.map((f, i) => ({
+      project_id: projectId,
+      key: f.key,
+      label: f.label,
+      instructions: f.instructions,
+      position: keys.length + i,
+    })),
+  );
+  if (error?.code === "P0001") return { error: error.message };
+  if (error) return { error: "Não foi possível aplicar o modelo." };
+  revalidatePath("/projects", "layout");
+  return { ok: true, added: plan.add.length, skipped: plan.skipped };
+}
+
+/** Campos opcionais da extração (spec 005): limitações, trabalhos futuros, lacunas. */
+export async function setOptionalFields(projectId: string, keys: string[]): Promise<ProjectActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ optional_fields: enabledOptional(keys) })
     .eq("id", projectId);
   if (error) return { error: "Não foi possível salvar." };
   revalidatePath("/projects", "layout");
