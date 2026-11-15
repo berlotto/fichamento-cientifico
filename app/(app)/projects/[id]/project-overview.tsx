@@ -3,12 +3,21 @@ import { notFound } from "next/navigation";
 import { BackIcon } from "@/components/icons";
 import { ProjectLanguage } from "@/components/language-select";
 import { preferredCitationStyle, requireUser } from "@/lib/auth";
-import { fieldDefs } from "@/lib/fields";
+import { enabledOptional, fieldDefs } from "@/lib/fields";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { usd } from "@/lib/format";
 import { READING_LABEL, READING_STATUSES, RELEVANCE_LABEL, RELEVANCES, type ReadingStatus, type Relevance } from "@/lib/reading";
 import { createClient } from "@/lib/supabase/server";
 import { ExportLinks } from "./export-links";
-import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
+import {
+  CustomFields,
+  DeleteProject,
+  FieldTemplates,
+  OptionalFields,
+  ReextractAll,
+  RenameProject,
+  VerificationSettings,
+} from "./project-settings";
 
 const REF_LABEL = { abnt: "ABNT", apa: "APA", vancouver: "Vancouver" } as const;
 type QualityRow = {
@@ -61,15 +70,21 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
   // BibTeX já tem botão próprio; a lista de referências usa a norma preferida (ABNT se for BibTeX).
   const refStyle = style === "bibtex" ? "abnt" : style;
 
-  const [{ data: project }, { data: custom }, { data: rawStats }] = await Promise.all([
+  const [{ data: project }, { data: custom }, { data: rawStats }, fieldLimit] = await Promise.all([
     supabase
       .from("projects")
-      .select("id, name, output_language, cross_check, auto_approve, critical_fields, audit_rate")
+      .select("id, name, output_language, cross_check, auto_approve, critical_fields, audit_rate, optional_fields")
       .eq("id", projectId)
       .maybeSingle(),
     supabase.from("project_fields").select("key, label, instructions").eq("project_id", projectId).order("position"),
     // Totais somados no banco (não traz as linhas de campos e custos).
     supabase.rpc("project_stats", { p_project: projectId }),
+    // O limite de campos é configuração do serviço: lido com a chave do servidor.
+    createAdminClient()
+      .from("app_settings")
+      .select("max_fields_per_project")
+      .maybeSingle()
+      .then((r) => r.data?.max_fields_per_project ?? 20),
   ]);
   if (!project) notFound();
 
@@ -90,7 +105,8 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
   );
 
   // Qualidade por campo, medida pelas suas revisões (o "gold set" sai da própria revisão).
-  const defs = fieldDefs(custom ?? []);
+  const optional = enabledOptional(project.optional_fields);
+  const defs = fieldDefs(custom ?? [], optional);
   const byKey = new Map(stats.quality.map((q) => [q.key, q]));
   const quality = defs.flatMap((d) => {
     const q = byKey.get(d.key);
@@ -208,11 +224,31 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className="eyebrow">O que os autores declaram</h2>
+        <p className="m-0 text-[13px] text-muted">
+          Campos extraídos só quando os autores os declaram no texto. Quando não há, a ficha mostra “não declarado
+          pelos autores” em vez de algo inventado. Valem para as próximas extrações.
+        </p>
+        <OptionalFields projectId={projectId} initial={optional} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="eyebrow">Glossário</h2>
+        <p className="m-0 text-[13px] text-muted">
+          Cadastre os conceitos da sua pesquisa e o Fichamento procura, em cada artigo, como os autores os definem.
+        </p>
+        <Link href={`/projects/${projectId}/glossario`} className="btn w-fit">
+          Abrir glossário
+        </Link>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="eyebrow">Campos personalizados</h2>
         <p className="m-0 text-[13px] text-muted">
           Além de resumo, assunto, objetivo, método, resultados e conclusões. Valem para os próximos artigos; para os
           que já estão no projeto, use “Extrair todos de novo”.
         </p>
+        <FieldTemplates projectId={projectId} existing={(custom ?? []).map((c) => c.key)} limit={fieldLimit} />
         <CustomFields projectId={projectId} fields={custom ?? []} />
         <ReextractAll projectId={projectId} count={extracted} />
       </section>

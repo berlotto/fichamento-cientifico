@@ -6,6 +6,7 @@ import { CopyButton } from "@/components/copy-button";
 import { TagPicker } from "@/components/tag-picker";
 import { directQuote, inTextCite, type CitableArticle, type InTextStyle } from "@/lib/citation";
 import { deleteQuote, saveQuoteComment } from "./actions";
+import { QuoteToDefinition, type ConceptOption } from "./quote-to-definition";
 
 export type QuoteItem = {
   id: string;
@@ -26,11 +27,13 @@ function QuoteCard({
   article,
   articleId,
   style,
+  concepts,
 }: {
   quote: QuoteItem;
   article: CitableArticle;
   articleId: string;
   style: InTextStyle;
+  concepts: ConceptOption[];
 }) {
   const [saved, setSaved] = useState(quote.comment ?? "");
   const [comment, setComment] = useState(quote.comment ?? "");
@@ -96,6 +99,7 @@ function QuoteCard({
         )}
       </div>
       <TagPicker quoteId={quote.id} />
+      <QuoteToDefinition quoteId={quote.id} concepts={concepts} />
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline justify-between gap-3">
           <label htmlFor={fieldId} className="text-xs font-medium text-muted">
@@ -130,12 +134,15 @@ export function Quotes({
   quotes,
   initialStyle,
   canSelect,
+  concepts = [],
 }: {
   articleId: string;
   article: CitableArticle;
   quotes: QuoteItem[];
   initialStyle: InTextStyle;
   canSelect: boolean;
+  /** Conceitos do glossário do projeto (spec 006). */
+  concepts?: ConceptOption[];
 }) {
   const [style, setStyle] = useState<InTextStyle>(initialStyle);
   const section = useRef<HTMLElement>(null);
@@ -168,7 +175,7 @@ export function Quotes({
       {quotes.length > 0 ? (
         <ul className="m-0 flex list-none flex-col gap-5 p-0">
           {quotes.map((q) => (
-            <QuoteCard key={q.id} quote={q} article={article} articleId={articleId} style={style} />
+            <QuoteCard key={q.id} quote={q} article={article} articleId={articleId} style={style} concepts={concepts} />
           ))}
         </ul>
       ) : (

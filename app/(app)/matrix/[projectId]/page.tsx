@@ -144,7 +144,9 @@ async function Matrix({ params, searchParams }: Props) {
                       <td key={d.key} className="border-b border-line p-3">
                         <div className="flex flex-col gap-2">
                         {hidden ? (
-                          <span className="text-xs text-muted">{f ? "a revisar" : "—"}</span>
+                          <span className="text-xs text-muted">
+                            {f ? "a revisar" : d.optional && Object.keys(a.fields).length > 0 ? "não declarado" : "—"}
+                          </span>
                         ) : (
                           <div className="flex flex-col gap-1.5">
                             <p className="font-article m-0 line-clamp-6 leading-snug">{f.value}</p>

@@ -2,6 +2,7 @@ import "server-only";
 
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { OPTIONAL_FIELDS } from "@/lib/fields";
 import type { PageText } from "@/lib/pipeline/verify";
 
 /**
@@ -10,7 +11,8 @@ import type { PageText } from "@/lib/pipeline/verify";
  * O modelo pode ser trocado por EXTRACT_MODEL sem mudar código.
  */
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
-export const PROMPT_VERSION = "extract-v2";
+// v3: campos opcionais (limitações, trabalhos futuros, lacunas; spec 005).
+export const PROMPT_VERSION = "extract-v3";
 
 export const FIELD_KEYS = ["abstract", "subject", "objective", "method", "results", "conclusions"] as const;
 /** Chave de campo: um dos 6 fixos ou a chave de um campo personalizado do projeto. */
@@ -47,8 +49,8 @@ const Metadata = z.object({
   language: z.string().nullable().describe("Código ISO 639-1 da língua do texto principal: pt, en, es..."),
 });
 
-/** Schema da saída: metadados + 6 campos fixos + campos personalizados do projeto. */
-export function extractionSchema(custom: CustomField[] = []) {
+/** Schema da saída: metadados + 6 campos fixos + opcionais ligados + personalizados do projeto. */
+export function extractionSchema(custom: CustomField[] = [], optional: readonly string[] = []) {
   const fields: Record<string, typeof Field> = {
     abstract: Field,
     subject: Field,
@@ -57,6 +59,7 @@ export function extractionSchema(custom: CustomField[] = []) {
     results: Field,
     conclusions: Field,
   };
+  for (const f of OPTIONAL_FIELDS) if (optional.includes(f.key)) fields[f.key] = Field;
   for (const c of custom) if (!(c.key in fields)) fields[c.key] = Field;
   return z.object({
     metadata: Metadata,
@@ -79,10 +82,23 @@ export type Extraction = {
   fields: Record<string, ExtractedField>;
 };
 
+/**
+ * Seção do prompt com os campos opcionais ligados no projeto (spec 005). Eles
+ * só registram o que os autores declaram: na falta, null (a ficha mostra
+ * "não declarado"), nunca uma inferência do modelo.
+ */
+export function optionalFieldsPrompt(optional: readonly string[]): string {
+  const on = OPTIONAL_FIELDS.filter((f) => optional.includes(f.key));
+  if (on.length === 0) return "";
+  const lines = on.map((f) => `- ${f.key}: ${f.prompt}`);
+  return `\n\nCampos sobre o que os autores DECLARAM (mesmas regras de value, quote e pdf_page; o quote vem da passagem em que os autores fazem a declaração):\n${lines.join("\n")}`;
+}
+
 /** Seção do prompt com os campos personalizados. A definição é do próprio usuário. */
-export function customFieldsPrompt(custom: CustomField[]): string {
-  if (custom.length === 0) return "";
-  const lines = custom.map(
+export function customFieldsPrompt(custom: CustomField[], optional: readonly string[] = []): string {
+  const own = custom.filter((c) => !optional.includes(c.key));
+  if (own.length === 0) return "";
+  const lines = own.map(
     (c) => `- ${c.key} (${c.label})${c.instructions?.trim() ? `: ${c.instructions.trim()}` : ""}`,
   );
   return `\n\nCampos adicionais deste projeto (mesmas regras de value, quote e pdf_page):\n${lines.join("\n")}`;
@@ -149,6 +165,8 @@ export async function extractWithLlm(
   custom: CustomField[] = [],
   lang = "português do Brasil",
   modelOverride?: string,
+  /** Campos opcionais ligados no projeto (spec 005). */
+  optional: readonly string[] = [],
 ): Promise<ExtractResult> {
   const model = modelOverride || process.env.EXTRACT_MODEL || DEFAULT_MODEL;
   const started = Date.now();
@@ -156,9 +174,9 @@ export async function extractWithLlm(
     model,
     // Modelos de raciocínio da OpenAI (gpt-5, o*) não aceitam temperature.
     ...(/^openai\/(gpt-5|o\d)/.test(model) ? {} : { temperature: 0 }),
-    system: systemPrompt(lang) + customFieldsPrompt(custom),
+    system: systemPrompt(lang) + optionalFieldsPrompt(optional) + customFieldsPrompt(custom, optional),
     prompt: `Artigo:\n\n${pagesPrompt(pages)}`,
-    output: Output.object({ schema: extractionSchema(custom) }),
+    output: Output.object({ schema: extractionSchema(custom, optional) }),
     // Abaixo do maxDuration da função (300 s), com folga para gravar o resultado.
     timeout: 150_000,
     maxRetries: 1,

@@ -97,6 +97,58 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"concepts": {
+                  Row: {
+                    "created_at": string,"id": string,"name": string,"notes": string | null,"project_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"name": string,"notes"?: string | null,"project_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"notes"?: string | null,"project_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "concepts_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"definitions": {
+                  Row: {
+                    "article_id": string,"cited_ref": string | null,"concept_id": string,"created_at": string,"id": string,"kind": string,"origin": string,"pdf_page": number | null,"printed_page": string | null,"quote_id": string | null,"source": string,"status": string,"text": string,"text_translated": string | null,"verified": boolean
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_id": string,"cited_ref"?: string | null,"concept_id": string,"created_at"?: string,"id"?: string,"kind"?: string,"origin"?: string,"pdf_page"?: number | null,"printed_page"?: string | null,"quote_id"?: string | null,"source"?: string,"status"?: string,"text": string,"text_translated"?: string | null,"verified"?: boolean
+                  }
+                  Update: {
+                    "article_id"?: string,"cited_ref"?: string | null,"concept_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"origin"?: string,"pdf_page"?: number | null,"printed_page"?: string | null,"quote_id"?: string | null,"source"?: string,"status"?: string,"text"?: string,"text_translated"?: string | null,"verified"?: boolean
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "definitions_article_id_fkey"
+      columns: ["article_id"]
+isOneToOne: false
+      referencedRelation: "articles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "definitions_concept_id_fkey"
+      columns: ["concept_id"]
+isOneToOne: false
+      referencedRelation: "concepts"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "definitions_quote_id_fkey"
+      columns: ["quote_id"]
+isOneToOne: false
+      referencedRelation: "quotes"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"field_comments": {
                   Row: {
                     "article_id": string,"body": string,"field_key": string,"updated_at": string
@@ -159,14 +211,14 @@ isOneToOne: false
                   ]
                 },"projects": {
                   Row: {
-                    "audit_rate": number,"auto_approve": boolean,"created_at": string,"critical_fields": (string)[],"cross_check": boolean,"id": string,"name": string,"output_language": string,"owner_id": string
+                    "audit_rate": number,"auto_approve": boolean,"created_at": string,"critical_fields": (string)[],"cross_check": boolean,"id": string,"name": string,"optional_fields": (string)[],"output_language": string,"owner_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name": string,"output_language"?: string,"owner_id"?: string
+                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name": string,"optional_fields"?: (string)[],"output_language"?: string,"owner_id"?: string
                   }
                   Update: {
-                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name"?: string,"output_language"?: string,"owner_id"?: string
+                    "audit_rate"?: number,"auto_approve"?: boolean,"created_at"?: string,"critical_fields"?: (string)[],"cross_check"?: boolean,"id"?: string,"name"?: string,"optional_fields"?: (string)[],"output_language"?: string,"owner_id"?: string
                   }
                   Relationships: [
                     
@@ -309,6 +361,9 @@ isOneToOne: false
       } },
 "queue_send":
 { Args: { "delay_seconds"?: number,"msg": Json }; Returns: number
+                           },
+"request_definitions":
+{ Args: { "p_project": string }; Returns: number
                            },
 "request_extract":
 { Args: { "article": string }; Returns: undefined
