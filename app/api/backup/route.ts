@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Backup em JSON dos dados do usuário (RLS: só o que é dele).
  * Inclui os campos da ficha (article_fields) com trecho e página, os comentários
- * por campo e a análise crítica (spec 001) e as citações marcadas à mão (spec 002).
+ * por campo, a análise crítica (spec 001), as citações à mão (spec 002), as tags
+ * (spec 003) e a situação de leitura (spec 004).
  * O texto das páginas e os PDFs ficam de fora: são reconstruíveis a partir do PDF.
  */
 export async function GET() {
@@ -11,12 +12,12 @@ export async function GET() {
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const [projects, articles, fields, comments, quotes] = await Promise.all([
+  const [projects, articles, fields, comments, quotes, tags, taggings] = await Promise.all([
     supabase.from("projects").select("id, name, created_at").order("created_at"),
     supabase
       .from("articles")
       .select(
-        "id, project_id, sha256, original_filename, source_url, doi, citekey, title, subtitle, authors, year, venue, volume, issue, pages, language, metadata_source, status, page_count, notes, crit_strengths, crit_weaknesses, crit_relevance, created_at, updated_at",
+        "id, project_id, sha256, original_filename, source_url, doi, citekey, title, subtitle, authors, year, venue, volume, issue, pages, language, metadata_source, status, page_count, notes, crit_strengths, crit_weaknesses, crit_relevance, reading_status, relevance, starred, created_at, updated_at",
       )
       .order("created_at"),
     supabase
@@ -24,21 +25,25 @@ export async function GET() {
       .select("article_id, key, value, quote, pdf_page, printed_page, verified, source, model, created_at"),
     supabase.from("field_comments").select("article_id, field_key, body, updated_at"),
     supabase.from("quotes").select("id, article_id, text, pdf_page, printed_page, comment, created_at, updated_at"),
+    supabase.from("tags").select("id, project_id, parent_id, name, color, description, created_at"),
+    supabase.from("taggings").select("tag_id, article_id, field_key, quote_id, created_at"),
   ]);
-  if (projects.error || articles.error || fields.error || comments.error || quotes.error) {
+  if ([projects, articles, fields, comments, quotes, tags, taggings].some((r) => r.error)) {
     return Response.json({ error: "backup failed" }, { status: 500 });
   }
 
   const now = new Date();
   const body = {
     format: "fichamento-backup",
-    version: 4,
+    version: 5,
     exported_at: now.toISOString(),
     projects: projects.data,
     articles: articles.data,
     article_fields: fields.data,
     field_comments: comments.data,
     quotes: quotes.data,
+    tags: tags.data,
+    taggings: taggings.data,
   };
   const file = `fichamento-backup-${now.toISOString().slice(0, 10)}.json`;
 

@@ -14,6 +14,8 @@ import {
   type CitableArticle,
 } from "@/lib/citation";
 import { fieldDefs, type FieldDef } from "@/lib/fields";
+import { readingLabel, relevanceLabel } from "@/lib/reading";
+import { tagFamily, tagPath, type Tag } from "@/lib/tags";
 import type { createClient } from "@/lib/supabase/server";
 import type { Cell } from "./xlsx";
 
@@ -43,22 +45,53 @@ export type TableArticle = CitableArticle & {
   notes: string | null;
   /** Citações marcadas à mão (spec 002), em ordem de página. */
   quotes: TableQuote[];
+  reading_status: string;
+  relevance: string | null;
+  starred: boolean;
+  /** Ids das tags marcadas no artigo, em campos ou em citações (spec 003). */
+  tagIds: string[];
 };
 
 export type TableQuote = { text: string; pdf_page: number; printed_page: string | null; comment: string | null };
 
-export type ProjectTable = { name: string; defs: FieldDef[]; articles: TableArticle[] };
+export type ProjectTable = {
+  name: string;
+  defs: FieldDef[];
+  articles: TableArticle[];
+  tags: Tag[];
+  /** Quantos artigos descartados ficaram de fora (spec 004). */
+  discardedHidden: number;
+};
+
+export type TableOptions = {
+  /** Inclui os artigos descartados (spec 004); padrão: fora. */
+  includeDiscarded?: boolean;
+  /** Só artigos marcados com esta tag ou um subtema dela (spec 003). */
+  tagId?: string | null;
+};
 
 /** Projeto com artigos e campos (sem os rejeitados). RLS: só o que é do usuário. */
-export async function loadProjectTable(supabase: Client, projectId: string): Promise<ProjectTable | null> {
-  const [{ data: project }, { data: custom }, { data: articles }, { data: fields }, { data: comments }, { data: quotes }] =
-    await Promise.all([
+export async function loadProjectTable(
+  supabase: Client,
+  projectId: string,
+  opts: TableOptions = {},
+): Promise<ProjectTable | null> {
+  const [
+    { data: project },
+    { data: custom },
+    { data: articles },
+    { data: fields },
+    { data: comments },
+    { data: quotes },
+    { data: tags },
+    { data: taggings },
+  ] = await Promise.all([
     supabase.from("projects").select("name").eq("id", projectId).maybeSingle(),
     supabase.from("project_fields").select("key, label").eq("project_id", projectId).order("position"),
     supabase
       .from("articles")
       .select(
-        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, citekey, status, created_at, crit_strengths, crit_weaknesses, crit_relevance, notes",
+        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, citekey, status, created_at, crit_strengths, crit_weaknesses, crit_relevance, notes, reading_status, relevance, starred",
       )
       .eq("project_id", projectId)
       .order("created_at"),
@@ -79,6 +112,8 @@ export async function loadProjectTable(supabase: Client, projectId: string): Pro
       .eq("articles.project_id", projectId)
       .order("pdf_page")
       .order("created_at"),
+    supabase.from("tags").select("id, name, parent_id, color").eq("project_id", projectId),
+    supabase.from("taggings").select("article_id, tag_id, tags!inner(project_id)").eq("tags.project_id", projectId),
   ]);
   if (!project) return null;
 
@@ -103,15 +138,43 @@ export async function loadProjectTable(supabase: Client, projectId: string): Pro
     quotesByArticle.set(q.article_id, list);
   }
 
-  const list = (articles ?? []).map((a) => ({
+  const tagsByArticle = new Map<string, Set<string>>();
+  for (const t of taggings ?? []) {
+    const set = tagsByArticle.get(t.article_id) ?? new Set<string>();
+    set.add(t.tag_id);
+    tagsByArticle.set(t.article_id, set);
+  }
+
+  const family = opts.tagId ? tagFamily(opts.tagId, tags ?? []) : null;
+  const all = (articles ?? []).map((a) => ({
     ...a,
     fields: byArticle.get(a.id) ?? {},
     comments: commentsByArticle.get(a.id) ?? {},
     quotes: quotesByArticle.get(a.id) ?? [],
+    tagIds: [...(tagsByArticle.get(a.id) ?? [])],
   }));
+  const byTag = family ? all.filter((a) => a.tagIds.some((t) => family.has(t))) : all;
+  const list = opts.includeDiscarded ? byTag : byTag.filter((a) => a.reading_status !== "discarded");
   // Ordem de bibliografia: autor, ano.
   list.sort((x, y) => (shortCite(x) ?? x.title ?? "").localeCompare(shortCite(y) ?? y.title ?? "", "pt-BR"));
-  return { name: project.name, defs: fieldDefs(custom ?? []), articles: list };
+  return {
+    name: project.name,
+    defs: fieldDefs(custom ?? []),
+    articles: list,
+    tags: tags ?? [],
+    discardedHidden: byTag.length - list.length,
+  };
+}
+
+/** Nomes das tags do artigo, "Tema › Subtema", separados por ponto e vírgula. */
+function tagNames(ids: string[], tags: Tag[]): string {
+  return ids
+    .flatMap((id) => {
+      const tag = tags.find((t) => t.id === id);
+      return tag ? [tagPath(tag, tags)] : [];
+    })
+    .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    .join("; ");
 }
 
 /** "p. 215" (página impressa) ou "PDF p. 3" quando o artigo não tem numeração. */
@@ -156,8 +219,12 @@ export function tableRows(t: ProjectTable, opts: { critique?: boolean } = {}): {
     "DOI",
     "Língua",
     "Referência ABNT",
+    "Situação de leitura",
+    "Relevância",
+    "Prioridade",
+    "Tags",
   ];
-  const widths = [22, 50, 40, 8, 30, 8, 8, 10, 28, 8, 60];
+  const widths = [22, 50, 40, 8, 30, 8, 8, 10, 28, 8, 60, 14, 12, 10, 30];
   for (const d of t.defs) {
     header.push(d.label, `${d.label}: trecho original`, `${d.label}: trecho traduzido`, `${d.label}: página`, `${d.label}: revisão`);
     widths.push(60, 50, 50, 10, 12);
@@ -189,6 +256,10 @@ export function tableRows(t: ProjectTable, opts: { critique?: boolean } = {}): {
       a.doi ? `https://doi.org/${a.doi}` : "",
       a.language ?? "",
       abntReference(a) ?? "",
+      readingLabel(a.reading_status),
+      relevanceLabel(a.relevance),
+      a.starred ? "★" : "",
+      tagNames(a.tagIds, t.tags),
     ];
     for (const d of t.defs) {
       const f = a.fields[d.key];

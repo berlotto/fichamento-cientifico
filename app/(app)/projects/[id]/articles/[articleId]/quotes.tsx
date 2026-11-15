@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CopyButton } from "@/components/copy-button";
+import { TagPicker } from "@/components/tag-picker";
 import { directQuote, inTextCite, type CitableArticle, type InTextStyle } from "@/lib/citation";
 import { deleteQuote, saveQuoteComment } from "./actions";
 
@@ -94,6 +95,7 @@ function QuoteCard({
           </button>
         )}
       </div>
+      <TagPicker quoteId={quote.id} />
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline justify-between gap-3">
           <label htmlFor={fieldId} className="text-xs font-medium text-muted">
@@ -151,7 +153,7 @@ export function Quotes({
           Minhas citações{quotes.length > 0 && <span className="ml-1.5 font-normal text-muted">{quotes.length}</span>}
         </h2>
         {quotes.length > 0 && (
-          <div className="segmented" role="group" aria-label="Norma da chamada">
+          <div className="segmented [&>button]:min-h-8 [&>button]:px-3 [&>button]:text-[13px]" role="group" aria-label="Norma da chamada">
             {STYLES.map((s) => (
               <button key={s.style} type="button" aria-pressed={s.style === style} onClick={() => setStyle(s.style)}>
                 {s.label}

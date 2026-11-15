@@ -5,6 +5,7 @@ import { ProjectLanguage } from "@/components/language-select";
 import { preferredCitationStyle, requireUser } from "@/lib/auth";
 import { fieldDefs } from "@/lib/fields";
 import { usd } from "@/lib/format";
+import { READING_LABEL, READING_STATUSES, RELEVANCE_LABEL, RELEVANCES, type ReadingStatus, type Relevance } from "@/lib/reading";
 import { createClient } from "@/lib/supabase/server";
 import { ExportLinks } from "./export-links";
 import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
@@ -32,6 +33,10 @@ type ProjectStats = {
   costed_articles: number;
   audit_queue: number;
   quality: QualityRow[];
+  /** Spec 004: artigos por situação de leitura e relevância; estrelas. */
+  reading?: Partial<Record<ReadingStatus, number>>;
+  relevance?: Partial<Record<Relevance, number>>;
+  starred?: number;
 };
 const EMPTY_STATS: ProjectStats = {
   total: 0,
@@ -75,6 +80,14 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
   const extracted = stats.extracted;
   const cost = Number(stats.cost);
   const costedArticles = stats.costed_articles;
+  const reading = stats.reading ?? {};
+  const discarded = reading.discarded ?? 0;
+  const active = total - discarded;
+  const readCount = (reading.read ?? 0) + (reading.noted ?? 0);
+  const readingParts = READING_STATUSES.flatMap((st) => (reading[st] ? [`${READING_LABEL[st].toLowerCase()} ${reading[st]}`] : []));
+  const relevanceParts = RELEVANCES.flatMap((r) =>
+    stats.relevance?.[r] ? [`${stats.relevance[r]} ${RELEVANCE_LABEL[r].toLowerCase()}`] : [],
+  );
 
   // Qualidade por campo, medida pelas suas revisões (o "gold set" sai da própria revisão).
   const defs = fieldDefs(custom ?? []);
@@ -131,6 +144,20 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
         {costedArticles > 0 && (
           <p className="m-0 text-xs text-muted">Média de {usd(cost / costedArticles)} por artigo extraído.</p>
         )}
+        {total > 0 && (
+          <div className="flex flex-col gap-1 rounded-xl bg-page p-4">
+            <span className="text-xs text-muted">Sua leitura</span>
+            <p className="m-0 font-serif text-xl">
+              {readCount} {readCount === 1 ? "lido" : "lidos"} de {active}
+              {discarded > 0 && <span className="text-sm text-muted"> · {discarded} descartados</span>}
+            </p>
+            <p className="m-0 text-xs text-muted">
+              {readingParts.join(" · ")}
+              {relevanceParts.length > 0 && ` — relevância: ${relevanceParts.join(", ")}`}
+              {stats.starred ? ` — ${stats.starred} com prioridade` : ""}
+            </p>
+          </div>
+        )}
       </header>
 
       <section className="flex flex-col gap-3">
@@ -139,11 +166,14 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
           <Link href={`/matrix/${projectId}`} className="btn btn-primary min-h-9 px-3 text-[13px]">
             Abrir matriz
           </Link>
+          <Link href={`/projects/${projectId}/temas`} className="btn min-h-9 px-3 text-[13px]">
+            Temas
+          </Link>
           <ExportLinks projectId={projectId} refStyle={refStyle} refLabel={REF_LABEL[refStyle]} />
         </div>
         <p className="m-0 text-[13px] text-muted">
           A matriz e as planilhas trazem um artigo por linha e um campo por coluna, com a página de cada trecho.
-          Campos rejeitados ficam de fora.
+          Campos rejeitados e artigos descartados ficam de fora.
         </p>
       </section>
 
