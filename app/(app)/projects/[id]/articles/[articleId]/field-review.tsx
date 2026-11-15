@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { TagPicker } from "@/components/tag-picker";
 import { CheckIcon } from "@/components/icons";
 import { editField, reviewField, saveFieldComment } from "./actions";
 
@@ -432,6 +433,7 @@ export function FieldReview({
               </button>
             )}
           </div>
+          <TagPicker fieldKey={field.key} />
         </>
       )}
       {msg && <p className="m-0 text-sm text-warn">{msg}</p>}

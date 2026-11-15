@@ -45,8 +45,17 @@ const table: Table = {
         { text: "a amostra foi pequena", pdf_page: 3, printed_page: "16", comment: "limitação" },
         { text: "sem grupo controle", pdf_page: 1, printed_page: null, comment: null },
       ],
+      reading_status: "noted",
+      relevance: "central",
+      starred: true,
+      tagIds: ["t2", "t1"],
     },
   ],
+  tags: [
+    { id: "t1", name: "Amostra", parent_id: null, color: "green" },
+    { id: "t2", name: "Tamanho", parent_id: "t1", color: "blue" },
+  ],
+  discardedHidden: 0,
 };
 
 describe("tableRows com análise crítica (spec 001)", () => {
@@ -82,5 +91,16 @@ describe("tableRows com análise crítica (spec 001)", () => {
   it("no CSV, comentário que começa com = é neutralizado", () => {
     const csv = buildCsv(tableRows(table, { critique: true }).rows);
     expect(csv).toContain("'=amostra pequena");
+  });
+});
+
+describe("tableRows com leitura e tags (specs 003 e 004)", () => {
+  it("traz situação, relevância, prioridade e tags do artigo", () => {
+    const [header, row] = tableRows(table).rows;
+    const at = (h: string) => row[header.indexOf(h)];
+    expect(at("Situação de leitura")).toBe("Fichado");
+    expect(at("Relevância")).toBe("Central");
+    expect(at("Prioridade")).toBe("★");
+    expect(at("Tags")).toBe("Amostra; Amostra › Tamanho");
   });
 });

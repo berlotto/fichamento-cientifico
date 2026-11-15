@@ -1,7 +1,7 @@
 # 1.3 Tags e temas
 
 **Spec**: 003_tags-temas.md
-**Status**: draft
+**Status**: done (aguardando validação do usuário)
 **Data**: 2026-11-14
 
 ## Contexto
@@ -20,22 +20,22 @@ A matriz organiza o projeto por campo (objetivo, método, resultados). Para escr
 
 | ID | Requisito | Status |
 |---|---|---|
-| R1 | Tabelas `tags` (por projeto, com `parent_id`) e `taggings` (alvo polimórfico: artigo, campo, citação) com RLS | ⬜ |
-| R2 | Criar, renomear, mudar cor, juntar duas tags e excluir | ⬜ |
-| R3 | Aplicar e remover tag em artigo, campo e citação, com autocompletar | ⬜ |
-| R4 | Página "Temas" com contagem por tag | ⬜ |
-| R5 | Visão de uma tag: trechos agrupados por artigo, com link para o visualizador | ⬜ |
-| R6 | Filtro por tag na lista de artigos e na matriz | ⬜ |
-| R7 | Exportar uma tag em xlsx e Markdown | ⬜ |
-| R8 | Limite de tags por projeto | ⬜ |
+| R1 | Tabelas `tags` (por projeto, com `parent_id`) e `taggings` (alvo polimórfico: artigo, campo, citação) com RLS | ✅ |
+| R2 | Criar, renomear, mudar cor, juntar duas tags e excluir | ✅ |
+| R3 | Aplicar e remover tag em artigo, campo e citação, com autocompletar | ✅ |
+| R4 | Página "Temas" com contagem por tag | ✅ |
+| R5 | Visão de uma tag: trechos agrupados por artigo, com link para o visualizador | ✅ |
+| R6 | Filtro por tag na lista de artigos e na matriz | ✅ |
+| R7 | Exportar uma tag em xlsx e Markdown | ✅ |
+| R8 | Limite de tags por projeto | ✅ |
 
 ## Critérios de Aceite
 
-- [ ] Juntar a tag A na B move todas as marcações de A para B e apaga A
-- [ ] Excluir uma tag pede confirmação e mostra quantas marcações serão removidas
-- [ ] Excluir um artigo remove as marcações dele
-- [ ] Uma tag de um projeto não aparece em outro
-- [ ] A visão da tag mostra cada trecho com (AUTOR, ano, p.)
+- [x] Juntar a tag A na B move todas as marcações de A para B e apaga A
+- [x] Excluir uma tag pede confirmação e mostra quantas marcações serão removidas
+- [x] Excluir um artigo remove as marcações dele
+- [x] Uma tag de um projeto não aparece em outro
+- [x] A visão da tag mostra cada trecho com (AUTOR, ano, p.)
 
 ## Fora do Escopo
 
@@ -60,8 +60,30 @@ A matriz organiza o projeto por campo (objetivo, método, resultados). Para escr
 - Usa: 002 (citações), 001 (se tag em comentário for aceita).
 - Ligada a F3.2 (embeddings) e F3.4 (MCP `set_tags`, já previsto no plano).
 
-## Perguntas em aberto
+## Perguntas em aberto (respondidas na implementação)
 
-1. Hierarquia de um nível basta?
-2. Tag em comentário do pesquisador (spec 001) faz sentido?
-3. Quer a sugestão de tags pelo LLM já nesta spec ou depois?
+1. ~~Um nível basta?~~ Sim: tema › subtema. O banco recusa um terceiro nível.
+2. ~~Tag em comentário?~~ Não por enquanto: o comentário é marcado junto com o campo.
+3. ~~Sugestão pelo LLM?~~ Depois, em spec própria.
+
+## Decisões tomadas na implementação (2026-11-16)
+
+- **Banco** (`20261116000100_tags.sql`):
+  - `tags`: nome único por projeto, sem diferenciar maiúsculas, com 1 a 60 caracteres. Seis cores fixas, descrição de até 500 caracteres e `parent_id` de um nível.
+  - `taggings`: o artigo sempre preenchido (para a RLS e o cascade), mais `field_key` ou `quote_id`. Sem nenhum dos dois, a marca vale para o artigo inteiro.
+  - Triggers garantem tag e alvo no mesmo projeto, citação do mesmo artigo, um nível só e o limite de 300 tags por projeto.
+- **Juntar tags**: a função `merge_tags` roda com as permissões de quem chama (`security invoker`, sob RLS). Ela move as marcações sem duplicar, passa os subtemas para a tag de destino e apaga a de origem.
+- **Excluir um tema**: os subtemas viram temas (`on delete set null`), e as marcações do tema somem.
+- **Reextração**: a marcação de campo é pela chave do campo, então sobrevive à reextração, como o comentário da spec 001.
+- **Ficha**: "+ tag" no artigo, em cada campo e em cada citação. O autocompletar sugere as tags do projeto (tema › subtema), e Enter cria a tag que não existe. Um contexto compartilhado faz a tag criada num campo aparecer na hora nos outros.
+- **Temas** (`/projects/[id]/temas`):
+  - Lista em árvore com contagem de trechos e de artigos. Dá para criar, editar (nome, cor, tema, descrição), juntar e excluir; a confirmação mostra quantas marcações saem.
+  - A visão de um tema inclui os subtemas e agrupa por artigo, em ordem de autor e ano.
+  - Cada trecho aparece com a chamada ABNT e link para o visualizador.
+- **Filtros**:
+  - Lista de artigos: o tema inclui os subtemas.
+  - Matriz: `?tema=`.
+  - Exportação do projeto: `&tema=`.
+  - O Excel e o CSV ganham a coluna "Tags".
+- **Exportar um tema**: Excel e Markdown (`/api/export/[projectId]/tema/[tagId]`), e "Copiar" põe o Markdown na área de transferência.
+- **Backup**: versão 5, com `tags` e `taggings`.

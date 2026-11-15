@@ -7,6 +7,7 @@ import { parseAuthorLines } from "@/lib/citation";
 import { normalizeDoi } from "@/lib/pipeline/metadata";
 import { locateQuote, numbersInQuote, resolvePage } from "@/lib/pipeline/verify";
 import { MAX_QUOTE_COMMENT } from "@/lib/quotes";
+import { isReadingStatus, isRelevance, type ReadingStatus, type Relevance } from "@/lib/reading";
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
 import { createClient } from "@/lib/supabase/server";
 
@@ -261,6 +262,33 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { error } = await supabase.from("quotes").delete().eq("id", quoteId);
   if (error) return { ok: false, error: "Não foi possível excluir a citação." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
+}
+
+export type ReadingPatch = { reading_status?: string; relevance?: string | null; starred?: boolean };
+
+/**
+ * Situação de leitura, relevância e estrela (spec 004). Valida cada valor; o
+ * grant por coluna garante que só essas três mudam por aqui.
+ */
+export async function saveReading(articleId: string, patch: ReadingPatch): Promise<ActionResult> {
+  await requireUser();
+  const update: { reading_status?: ReadingStatus; relevance?: Relevance | null; starred?: boolean } = {};
+  if (patch.reading_status !== undefined) {
+    if (!isReadingStatus(patch.reading_status)) return { ok: false, error: "Situação inválida." };
+    update.reading_status = patch.reading_status;
+  }
+  if (patch.relevance !== undefined) {
+    if (patch.relevance !== null && !isRelevance(patch.relevance)) return { ok: false, error: "Relevância inválida." };
+    update.relevance = patch.relevance;
+  }
+  if (patch.starred !== undefined) update.starred = Boolean(patch.starred);
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("articles").update(update).eq("id", articleId);
+  if (error) return { ok: false, error: "Não foi possível salvar." };
   revalidatePath("/projects", "layout");
   return { ok: true };
 }

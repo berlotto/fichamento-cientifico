@@ -13,6 +13,9 @@ import { FieldReview, type ReviewField } from "./field-review";
 import { DetailSkeleton } from "@/components/skeletons";
 import { Critique } from "./critique";
 import { Quotes } from "./quotes";
+import { ReadingControls } from "@/components/reading-controls";
+import { TagPicker, TagsProvider } from "@/components/tag-picker";
+import { isReadingStatus, isRelevance } from "@/lib/reading";
 
 type Props = PageProps<"/projects/[id]/articles/[articleId]">;
 
@@ -34,12 +37,20 @@ async function Ficha({ params }: Pick<Props, "params">) {
   await requireUser();
   const supabase = await createClient();
 
-  const [{ data: a }, { data: fieldRows }, { data: custom }, { data: runs }, { data: commentRows }, { data: quoteRows }] =
-    await Promise.all([
+  const [
+    { data: a },
+    { data: fieldRows },
+    { data: custom },
+    { data: runs },
+    { data: commentRows },
+    { data: quoteRows },
+    { data: tags },
+    { data: taggings },
+  ] = await Promise.all([
     supabase
       .from("articles")
       .select(
-        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, metadata_source, source_url, status, page_count, error, notes, crit_strengths, crit_weaknesses, crit_relevance, citekey",
+        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, metadata_source, source_url, status, page_count, error, notes, crit_strengths, crit_weaknesses, crit_relevance, citekey, reading_status, relevance, starred",
       )
       .eq("id", articleId)
       .eq("project_id", id)
@@ -57,6 +68,8 @@ async function Ficha({ params }: Pick<Props, "params">) {
       .eq("article_id", articleId)
       .order("pdf_page")
       .order("created_at"),
+    supabase.from("tags").select("id, name, parent_id, color").eq("project_id", id),
+    supabase.from("taggings").select("id, tag_id, field_key, quote_id").eq("article_id", articleId),
   ]);
   if (!a) notFound();
 
@@ -86,6 +99,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
   ].filter(Boolean);
 
   return (
+    <TagsProvider key={a.id} articleId={a.id} tags={tags ?? []} taggings={taggings ?? []}>
     <div data-pane="detail" className="mx-auto flex w-full max-w-[780px] flex-col gap-9 px-8 pt-5 pb-14 max-[860px]:px-5">
       <header className="flex flex-col gap-4">
         <div className="flex min-h-11 items-center justify-between">
@@ -150,6 +164,17 @@ async function Ficha({ params }: Pick<Props, "params">) {
           )}
         </div>
         {a.error && !working && <p className="m-0 text-sm text-warn">{a.error}</p>}
+
+        <ReadingControls
+          key={`${a.reading_status}-${a.relevance}-${a.starred}`}
+          articleId={a.id}
+          initial={{
+            reading_status: isReadingStatus(a.reading_status) ? a.reading_status : "to_read",
+            relevance: isRelevance(a.relevance) ? a.relevance : null,
+            starred: a.starred,
+          }}
+        />
+        <TagPicker label="tag do artigo" />
 
         <ArticleTools
           projectId={id}
@@ -255,6 +280,7 @@ async function Ficha({ params }: Pick<Props, "params">) {
 
       {cost > 0 && <p className="m-0 text-xs text-muted">Custo da extração: {usd(cost)}</p>}
     </div>
+    </TagsProvider>
   );
 }
 

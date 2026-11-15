@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { fullTitle, shortCite } from "@/lib/citation";
 import { CRITIQUE_COLUMNS, loadProjectTable, pageLabel } from "@/lib/export/project-table";
 import { createClient } from "@/lib/supabase/server";
+import { TagFilter } from "./tag-filter";
 
 type Props = PageProps<"/matrix/[projectId]">;
 
@@ -18,22 +19,30 @@ type Props = PageProps<"/matrix/[projectId]">;
  */
 async function Matrix({ params, searchParams }: Props) {
   const { projectId } = await params;
-  const { todos, comentarios } = await searchParams;
+  const { todos, comentarios, descartados, tema } = await searchParams;
   const showPending = todos === "1";
   const showComments = comentarios === "1";
+  const showDiscarded = descartados === "1";
+  const tagId = typeof tema === "string" && /^[0-9a-f-]{36}$/.test(tema) ? tema : null;
   await requireUser();
   const supabase = await createClient();
-  const table = await loadProjectTable(supabase, projectId);
+  const table = await loadProjectTable(supabase, projectId, { includeDiscarded: showDiscarded, tagId });
   if (!table) notFound();
 
-  const href = (pending: boolean, comments: boolean) => {
-    const q = [pending && "todos=1", comments && "comentarios=1"].filter(Boolean).join("&");
+  type View = { pending: boolean; comments: boolean; discarded: boolean };
+  const current: View = { pending: showPending, comments: showComments, discarded: showDiscarded };
+  const query = (v: View, extra: string[] = []) =>
+    [v.pending && "todos=1", v.comments && "comentarios=1", v.discarded && "descartados=1", ...extra]
+      .filter(Boolean)
+      .join("&");
+  const href = (change: Partial<View>) => {
+    const q = query({ ...current, ...change }, tagId ? [`tema=${tagId}`] : []);
     return `/matrix/${projectId}${q ? `?${q}` : ""}`;
   };
 
   const toggle = (on: boolean, label: string) => (
     <Link
-      href={href(on, showComments)}
+      href={href({ pending: on })}
       aria-pressed={showPending === on}
       className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${showPending === on ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,.12)]" : "text-muted"}`}
     >
@@ -54,15 +63,31 @@ async function Matrix({ params, searchParams }: Props) {
           {toggle(false, "Só revisados")}
           {toggle(true, "Incluir a revisar")}
         </div>
+        {table.tags.length > 0 && (
+          <TagFilter
+            tags={table.tags}
+            value={tagId ?? ""}
+            base={`/matrix/${projectId}`}
+            query={query(current)}
+          />
+        )}
         <Link
-          href={href(showPending, !showComments)}
+          href={href({ discarded: !showDiscarded })}
+          aria-pressed={showDiscarded}
+          className={`btn min-h-9 px-3 text-[13px] ${showDiscarded ? "border-accent text-accent" : ""}`}
+          title="Artigos marcados como descartados ficam fora da matriz por padrão"
+        >
+          Incluir descartados
+        </Link>
+        <Link
+          href={href({ comments: !showComments })}
           aria-pressed={showComments}
           className={`btn min-h-9 px-3 text-[13px] ${showComments ? "border-accent text-accent" : ""}`}
         >
           Meus comentários
         </Link>
         <a
-          href={`/api/export/${projectId}?format=xlsx${showComments ? "&comentarios=1" : ""}`}
+          href={`/api/export/${projectId}?format=xlsx${showComments ? "&comentarios=1" : ""}${showDiscarded ? "&descartados=1" : ""}${tagId ? `&tema=${tagId}` : ""}`}
           className="btn min-h-9 px-3 text-[13px]"
           download
         >
@@ -71,8 +96,14 @@ async function Matrix({ params, searchParams }: Props) {
         <ThemeToggle />
       </header>
 
+      {!showDiscarded && table.discardedHidden > 0 && (
+        <p className="m-0 text-xs text-muted">
+          {table.discardedHidden} {table.discardedHidden === 1 ? "artigo descartado fora" : "artigos descartados fora"} da
+          matriz.
+        </p>
+      )}
       {table.articles.length === 0 ? (
-        <p className="m-0 text-sm text-muted">Nenhum artigo neste projeto.</p>
+        <p className="m-0 text-sm text-muted">{tagId ? "Nenhum artigo com este tema." : "Nenhum artigo neste projeto."}</p>
       ) : (
         <div className="overflow-auto rounded-xl border border-line bg-surface">
           <table className="border-collapse text-sm">

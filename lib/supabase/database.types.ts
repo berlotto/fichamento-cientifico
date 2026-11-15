@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"articles": {
                   Row: {
-                    "authors": Json | null,"citekey": string | null,"created_at": string,"crit_relevance": string | null,"crit_strengths": string | null,"crit_weaknesses": string | null,"doi": string | null,"error": string | null,"id": string,"issue": string | null,"language": string | null,"metadata_source": string | null,"notes": string | null,"original_filename": string | null,"page_count": number | null,"pages": string | null,"project_id": string,"sha256": string,"source_url": string | null,"status": string,"storage_path": string,"subtitle": string | null,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"volume": string | null,"year": number | null,"zotero_key": string | null
+                    "authors": Json | null,"citekey": string | null,"created_at": string,"crit_relevance": string | null,"crit_strengths": string | null,"crit_weaknesses": string | null,"doi": string | null,"error": string | null,"id": string,"issue": string | null,"language": string | null,"metadata_source": string | null,"notes": string | null,"original_filename": string | null,"page_count": number | null,"pages": string | null,"project_id": string,"reading_status": string,"relevance": string | null,"sha256": string,"source_url": string | null,"starred": boolean,"status": string,"storage_path": string,"subtitle": string | null,"tier": string,"title": string | null,"updated_at": string,"venue": string | null,"volume": string | null,"year": number | null,"zotero_key": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id": string,"sha256": string,"source_url"?: string | null,"status"?: string,"storage_path": string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id": string,"reading_status"?: string,"relevance"?: string | null,"sha256": string,"source_url"?: string | null,"starred"?: boolean,"status"?: string,"storage_path": string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Update: {
-                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id"?: string,"sha256"?: string,"source_url"?: string | null,"status"?: string,"storage_path"?: string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
+                    "authors"?: Json | null,"citekey"?: string | null,"created_at"?: string,"crit_relevance"?: string | null,"crit_strengths"?: string | null,"crit_weaknesses"?: string | null,"doi"?: string | null,"error"?: string | null,"id"?: string,"issue"?: string | null,"language"?: string | null,"metadata_source"?: string | null,"notes"?: string | null,"original_filename"?: string | null,"page_count"?: number | null,"pages"?: string | null,"project_id"?: string,"reading_status"?: string,"relevance"?: string | null,"sha256"?: string,"source_url"?: string | null,"starred"?: boolean,"status"?: string,"storage_path"?: string,"subtitle"?: string | null,"tier"?: string,"title"?: string | null,"updated_at"?: string,"venue"?: string | null,"volume"?: string | null,"year"?: number | null,"zotero_key"?: string | null
                   }
                   Relationships: [
                     {
@@ -191,6 +191,64 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"taggings": {
+                  Row: {
+                    "article_id": string,"created_at": string,"field_key": string | null,"id": string,"quote_id": string | null,"tag_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_id": string,"created_at"?: string,"field_key"?: string | null,"id"?: string,"quote_id"?: string | null,"tag_id": string
+                  }
+                  Update: {
+                    "article_id"?: string,"created_at"?: string,"field_key"?: string | null,"id"?: string,"quote_id"?: string | null,"tag_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "taggings_article_id_fkey"
+      columns: ["article_id"]
+isOneToOne: false
+      referencedRelation: "articles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "taggings_quote_id_fkey"
+      columns: ["quote_id"]
+isOneToOne: false
+      referencedRelation: "quotes"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "taggings_tag_id_fkey"
+      columns: ["tag_id"]
+isOneToOne: false
+      referencedRelation: "tags"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"tags": {
+                  Row: {
+                    "color": string,"created_at": string,"description": string | null,"id": string,"name": string,"parent_id": string | null,"project_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "color"?: string,"created_at"?: string,"description"?: string | null,"id"?: string,"name": string,"parent_id"?: string | null,"project_id": string
+                  }
+                  Update: {
+                    "color"?: string,"created_at"?: string,"description"?: string | null,"id"?: string,"name"?: string,"parent_id"?: string | null,"project_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tags_parent_id_fkey"
+      columns: ["parent_id"]
+isOneToOne: false
+      referencedRelation: "tags"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "tags_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"user_limits": {
                   Row: {
                     "articles_per_day": number | null,"blocked": boolean,"extractions_per_day": number | null,"max_pdfs": number | null,"max_projects": number | null,"monthly_budget_usd": number | null,"note": string | null,"unlimited_budget": boolean,"updated_at": string,"user_id": string
@@ -228,6 +286,9 @@ isOneToOne: false
                            },
 "llm_block_reason_for_article":
 { Args: { "article": string }; Returns: string
+                           },
+"merge_tags":
+{ Args: { "dst": string,"src": string }; Returns: undefined
                            },
 "my_usage":
 { Args: Record<PropertyKey, never>; Returns: Json

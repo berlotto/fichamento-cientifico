@@ -5,18 +5,22 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Exporta o projeto: ?format=xlsx | csv | bib | abnt | apa | vancouver. RLS: só projetos do usuário.
  * `&comentarios=1` inclui, no xlsx e no CSV, os comentários e a análise crítica (spec 001).
+ * `&descartados=1` inclui os artigos descartados (spec 004); `&tema=<id>` filtra por tema (spec 003).
  */
 export async function GET(request: Request, { params }: RouteContext<"/api/export/[projectId]">) {
   const { projectId } = await params;
   const search = new URL(request.url).searchParams;
   const format = search.get("format") ?? "xlsx";
   const critique = search.get("comentarios") === "1";
+  const includeDiscarded = search.get("descartados") === "1";
+  const tema = search.get("tema");
+  const tagId = tema && /^[0-9a-f-]{36}$/.test(tema) ? tema : null;
 
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const table = await loadProjectTable(supabase, projectId);
+  const table = await loadProjectTable(supabase, projectId, { includeDiscarded, tagId });
   if (!table) return Response.json({ error: "not found" }, { status: 404 });
 
   const base =

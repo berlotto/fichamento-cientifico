@@ -1,7 +1,7 @@
 # 1.4 Situação de leitura e relevância
 
 **Spec**: 004_situacao-leitura-relevancia.md
-**Status**: draft
+**Status**: done (aguardando validação do usuário)
 **Data**: 2026-11-14
 
 ## Contexto
@@ -20,18 +20,18 @@ O status do artigo hoje é do pipeline (`uploaded`, `parsed`, `extracted`, `need
 
 | ID | Requisito | Status |
 |---|---|---|
-| R1 | Colunas `reading_status`, `relevance`, `starred` em `articles`, com `grant update` só nessas colunas | ⬜ |
-| R2 | Edição rápida na lista de artigos e na ficha | ⬜ |
-| R3 | Filtros por situação, relevância e estrela na lista | ⬜ |
-| R4 | Contagens na visão do projeto (ex.: "32 lidos de 80") | ⬜ |
-| R5 | Descartados fora da matriz e dos exports por padrão, com opção de incluir | ⬜ |
-| R6 | Colunas de situação e relevância nos exports xlsx/CSV | ⬜ |
+| R1 | Colunas `reading_status`, `relevance`, `starred` em `articles`, com `grant update` só nessas colunas | ✅ |
+| R2 | Edição rápida na lista de artigos e na ficha | ✅ |
+| R3 | Filtros por situação, relevância e estrela na lista | ✅ |
+| R4 | Contagens na visão do projeto (ex.: "32 lidos de 80") | ✅ |
+| R5 | Descartados fora da matriz e dos exports por padrão, com opção de incluir | ✅ |
+| R6 | Colunas de situação e relevância nos exports xlsx/CSV | ✅ |
 
 ## Critérios de Aceite
 
-- [ ] Mudar a situação não altera o status do pipeline e vice-versa
-- [ ] Um artigo descartado continua acessível pelo filtro "descartados"
-- [ ] O usuário não consegue alterar o status do pipeline pelo mesmo caminho (teste de grant)
+- [x] Mudar a situação não altera o status do pipeline e vice-versa
+- [x] Um artigo descartado continua acessível pelo filtro "descartados"
+- [x] O usuário não consegue alterar o status do pipeline pelo mesmo caminho (teste de grant)
 
 ## Fora do Escopo
 
@@ -53,8 +53,18 @@ O status do artigo hoje é do pipeline (`uploaded`, `parsed`, `extracted`, `need
 
 - A triagem (008) usa "descartado" com motivo; definir se as duas coisas se fundem.
 
-## Perguntas em aberto
+## Perguntas em aberto (respondidas na implementação)
 
-1. Os cinco estados de leitura e os três de relevância servem?
-2. "Descartado" aqui e "excluído na triagem" (spec 008) devem ser a mesma coisa?
-3. Marcar *fichado* automaticamente quando o artigo fica `verified`?
+1. ~~Estados servem?~~ Sim: a ler, lendo, lido, fichado, descartado; central, apoio, periférico.
+2. ~~Descartado = triagem?~~ Ficam separados por enquanto. A spec 008 decide se usa o mesmo campo.
+3. ~~Fichado automático?~~ Não: o pesquisador marca. Verificar os campos não quer dizer ter terminado a leitura.
+
+## Decisões tomadas na implementação (2026-11-16)
+
+- **Colunas** (`20261116000000_reading_status.sql`): `reading_status` (padrão `to_read`), `relevance` (pode ficar vazia) e `starred`, todas com `check`. O `grant update` vale só para as três: o status do pipeline continua fora do alcance do usuário, e há teste de integração para isso.
+- **Ficha**: estrela, seletor de leitura e relevância em três botões (clicar de novo na marcada tira a relevância).
+- **Lista**:
+  - Cada artigo ganha um seletor de situação e a estrela, com a relevância ao lado da citação.
+  - Filtros por situação, relevância, tema e prioridade. O padrão é "Sem descartados", e "Descartado (n)" mostra os descartados, que aparecem esmaecidos.
+- **Visão do projeto**: o quadro "Sua leitura" mostra "N lidos de M" (lido + fichado, sem os descartados), mais as contagens por situação, por relevância e de prioridade. Os totais vêm do `project_stats`, somados no banco.
+- **Matriz e exportações**: os descartados ficam de fora por padrão. Para incluí-los há o botão "Incluir descartados" na matriz e a caixa na visão do projeto (`&descartados=1`). A matriz avisa quantos ficaram de fora. O Excel e o CSV ganham as colunas "Situação de leitura", "Relevância" e "Prioridade".
