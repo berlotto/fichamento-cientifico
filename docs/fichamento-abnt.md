@@ -63,10 +63,10 @@ Publicada em julho de 2023, substituiu a de 2002. As referências continuam em c
 | Referência ABNT NBR 6023 (artigo de periódico) | ✅ |
 | Fichamento de conteúdo (campos extraídos com trecho e página) | ✅ |
 | Fichamento de citação: trechos dos campos | ✅ |
-| Fichamento de citação: trechos escolhidos pelo pesquisador (spec 002) | ⬜ |
-| Fichamento crítico estruturado (spec 001) | ⬜ (há só "Minhas notas") |
-| Citação direta com página no formato NBR 10520:2023 (sobrenome só com inicial maiúscula) | ⬜ (conferir `shortCite`) |
-| *et al.* com 4+ autores | ⬜ |
+| Fichamento de citação: trechos escolhidos pelo pesquisador (spec 002) | ✅ |
+| Fichamento crítico estruturado (spec 001) | ✅ |
+| Citação direta com página no formato NBR 10520:2023 (sobrenome só com inicial maiúscula) | ✅ (`inTextCite`) |
+| *et al.* com 4+ autores (até três, todos) | ✅ |
 | Localização em documento sem paginação | ⬜ |
 | Citação direta longa em bloco recuado (spec 015) | ⬜ |
 | Ficha completa como documento (spec 015) | ⬜ |

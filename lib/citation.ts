@@ -70,18 +70,55 @@ export const authorLines = (raw: unknown) =>
     .map((a) => (a.given ? `${a.family}, ${a.given}` : a.family.includes(" ") ? `${a.family},` : a.family))
     .join("\n");
 
-/** "Moraes et al., 2022" · "Lima; Prado, 2020" · "Carvalho, 2018". Null sem autor e ano. */
+/**
+ * Autoria na citação ABNT (NBR 10520:2023): até três autores, todos separados
+ * por ponto e vírgula; quatro ou mais, o primeiro seguido de "et al.".
+ */
+function abntWho(authors: Author[], upper = false): string {
+  const name = (a: Author) => (upper ? a.family.toUpperCase() : a.family);
+  return authors.length > 3 ? `${name(authors[0])} et al.` : authors.map(name).join("; ");
+}
+
+/** "Moraes et al., 2022" · "Lima; Prado; Reis, 2020" · "Carvalho, 2018". Null sem autor e ano. */
 export function shortCite(article: CitableArticle, upper = false): string | null {
   const authors = parseAuthors(article.authors);
   if (authors.length === 0 || !article.year) return null;
-  const name = (a: Author) => (upper ? a.family.toUpperCase() : a.family);
+  return `${abntWho(authors, upper)}, ${article.year}`;
+}
+
+export type InTextStyle = "abnt" | "apa" | "vancouver";
+
+/**
+ * Chamada de citação direta com página (spec 002):
+ * - ABNT (NBR 10520:2023): (Silva; Souza, 2023, p. 45)
+ * - APA 7: (Silva & Souza, 2023, p. 45); três ou mais autores: (Silva et al., 2023, p. 45)
+ * - Vancouver: [n, p. 45], com n = número da referência na lista do trabalho
+ * Null quando ABNT ou APA não têm autor e ano.
+ */
+export function inTextCite(article: CitableArticle, page: string, style: InTextStyle): string | null {
+  const p = `p. ${page}`;
+  if (style === "vancouver") return `[n, ${p}]`;
+  const authors = parseAuthors(article.authors);
+  if (authors.length === 0 || !article.year) return null;
+  if (style === "abnt") return `(${abntWho(authors)}, ${article.year}, ${p})`;
   const who =
     authors.length === 1
-      ? name(authors[0])
+      ? authors[0].family
       : authors.length === 2
-        ? `${name(authors[0])}; ${name(authors[1])}`
-        : `${name(authors[0])} et al.`;
-  return `${who}, ${article.year}`;
+        ? `${authors[0].family} & ${authors[1].family}`
+        : `${authors[0].family} et al.`;
+  return `(${who}, ${article.year}, ${p})`;
+}
+
+/**
+ * Citação direta pronta para colar. Curta: entre aspas, seguida da chamada.
+ * Longa (ABNT: mais de três linhas, aqui ~240 caracteres; APA: 40 palavras ou
+ * mais): sem aspas, para virar bloco recuado no texto.
+ */
+export function directQuote(text: string, cite: string, style: InTextStyle): string {
+  const long =
+    style === "apa" ? (text.match(/\S+/g) ?? []).length >= 40 : style === "abnt" ? text.length > 240 : false;
+  return long ? `${text} ${cite}` : `“${text}” ${cite}`;
 }
 
 /** "Moraes, Tavares e Ribeiro" para a linha de metadados. */

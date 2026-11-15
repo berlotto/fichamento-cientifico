@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Backup em JSON dos dados do usuário (RLS: só o que é dele).
  * Inclui os campos da ficha (article_fields) com trecho e página, os comentários
- * por campo e a análise crítica (spec 001).
+ * por campo e a análise crítica (spec 001) e as citações marcadas à mão (spec 002).
  * O texto das páginas e os PDFs ficam de fora: são reconstruíveis a partir do PDF.
  */
 export async function GET() {
@@ -11,7 +11,7 @@ export async function GET() {
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const [projects, articles, fields, comments] = await Promise.all([
+  const [projects, articles, fields, comments, quotes] = await Promise.all([
     supabase.from("projects").select("id, name, created_at").order("created_at"),
     supabase
       .from("articles")
@@ -23,20 +23,22 @@ export async function GET() {
       .from("article_fields")
       .select("article_id, key, value, quote, pdf_page, printed_page, verified, source, model, created_at"),
     supabase.from("field_comments").select("article_id, field_key, body, updated_at"),
+    supabase.from("quotes").select("id, article_id, text, pdf_page, printed_page, comment, created_at, updated_at"),
   ]);
-  if (projects.error || articles.error || fields.error || comments.error) {
+  if (projects.error || articles.error || fields.error || comments.error || quotes.error) {
     return Response.json({ error: "backup failed" }, { status: 500 });
   }
 
   const now = new Date();
   const body = {
     format: "fichamento-backup",
-    version: 3,
+    version: 4,
     exported_at: now.toISOString(),
     projects: projects.data,
     articles: articles.data,
     article_fields: fields.data,
     field_comments: comments.data,
+    quotes: quotes.data,
   };
   const file = `fichamento-backup-${now.toISOString().slice(0, 10)}.json`;
 

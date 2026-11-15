@@ -1,28 +1,49 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { BackIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-controls";
 import { articleStatus, TONE_CLASS } from "@/lib/article-status";
 import { requireUser } from "@/lib/auth";
 import { findQuoteRange } from "@/lib/pipeline/verify";
 import { createClient } from "@/lib/supabase/server";
+import { SelectableText } from "./selectable-text";
 
 type Props = PageProps<"/viewer/[articleId]">;
 
-/** Texto da página com o trecho da ficha destacado (quando veio de um campo). */
-function highlighted(text: string, quote: string | null) {
-  const range = quote ? findQuoteRange(text, quote) : null;
-  if (!range) return text;
-  return (
-    <>
-      {text.slice(0, range[0])}
-      <mark id="trecho" className="rounded-sm bg-tint px-0.5 text-ink ring-1 ring-accent">
+type Mark = { range: [number, number]; target: boolean };
+
+/**
+ * Texto da página com destaques: o trecho aberto pelo link (campo da ficha ou
+ * citação, com id="trecho") e, mais leves, as citações já guardadas na página.
+ */
+function highlighted(text: string, marks: Mark[]) {
+  const sorted = [...marks].sort((a, b) => a.range[0] - b.range[0] || Number(b.target) - Number(a.target));
+  const nodes: ReactNode[] = [];
+  let pos = 0;
+  let targetDone = false;
+  for (const { range, target } of sorted) {
+    if (range[0] < pos) continue; // sobreposto a um destaque anterior
+    nodes.push(text.slice(pos, range[0]));
+    const isTarget = target && !targetDone;
+    if (isTarget) targetDone = true;
+    nodes.push(
+      <mark
+        key={range[0]}
+        id={isTarget ? "trecho" : undefined}
+        className={
+          isTarget
+            ? "rounded-sm bg-tint px-0.5 text-ink ring-1 ring-accent"
+            : "rounded-sm bg-tint/60 text-ink underline decoration-accent decoration-1 underline-offset-2"
+        }
+      >
         {text.slice(range[0], range[1])}
-      </mark>
-      {text.slice(range[1])}
-    </>
-  );
+      </mark>,
+    );
+    pos = range[1];
+  }
+  nodes.push(text.slice(pos));
+  return nodes;
 }
 
 /**
@@ -31,8 +52,9 @@ function highlighted(text: string, quote: string | null) {
  */
 async function ArticleView({ params, searchParams }: Props) {
   const { articleId } = await params;
-  const { p, q } = await searchParams;
+  const { p, q, c } = await searchParams;
   const quote = (Array.isArray(q) ? q[0] : q)?.slice(0, 300) ?? null;
+  const quoteId = Array.isArray(c) ? c[0] : c;
   await requireUser();
   const supabase = await createClient();
 
@@ -47,7 +69,7 @@ async function ArticleView({ params, searchParams }: Props) {
   const requested = Number(Array.isArray(p) ? p[0] : p);
   const page = Number.isInteger(requested) && requested >= 1 && requested <= pageCount ? requested : 1;
 
-  const [{ data: signed }, { data: pageRow }] = await Promise.all([
+  const [{ data: signed }, { data: pageRow }, { data: saved }] = await Promise.all([
     supabase.storage.from("pdfs").createSignedUrl(article.storage_path, 60 * 60),
     supabase
       .from("article_pages")
@@ -55,7 +77,18 @@ async function ArticleView({ params, searchParams }: Props) {
       .eq("article_id", articleId)
       .eq("pdf_page", page)
       .maybeSingle(),
+    supabase.from("quotes").select("id, text").eq("article_id", articleId).eq("pdf_page", page),
   ]);
+
+  const text = pageRow?.text ?? "";
+  const marks: Mark[] = [];
+  const fieldRange = quote && text ? findQuoteRange(text, quote) : null;
+  if (fieldRange) marks.push({ range: fieldRange, target: true });
+  for (const sq of saved ?? []) {
+    const range = text ? findQuoteRange(text, sq.text) : null;
+    if (range) marks.push({ range, target: sq.id === quoteId });
+  }
+  const fichaHref = `/projects/${article.project_id}/articles/${article.id}`;
 
   const base = `/viewer/${articleId}`;
   const status = articleStatus(article.status);
@@ -66,7 +99,7 @@ async function ArticleView({ params, searchParams }: Props) {
     <main className="flex min-h-dvh flex-1 flex-col gap-3 bg-page p-4">
       <header className="flex flex-wrap items-center gap-2">
         <Link
-          href={`/projects/${article.project_id}/articles/${article.id}`}
+          href={fichaHref}
           className="icon-btn -ml-2"
           aria-label="Voltar à ficha"
         >
@@ -99,6 +132,11 @@ async function ArticleView({ params, searchParams }: Props) {
           ) : (
             <span className={navOff}>próxima →</span>
           )}
+          {text && (
+            <span className="text-xs text-muted max-lg:basis-full lg:ml-auto">
+              Selecione um trecho do texto extraído para guardar como citação.
+            </span>
+          )}
         </nav>
       )}
 
@@ -113,15 +151,15 @@ async function ArticleView({ params, searchParams }: Props) {
         ) : (
           <p className="text-warn">Não foi possível abrir o PDF.</p>
         )}
-        <pre className="min-h-[75vh] overflow-auto rounded-lg border border-line bg-surface p-4 font-mono text-xs whitespace-pre-wrap">
-          {pageRow?.text ? (
-            highlighted(pageRow.text, quote)
-          ) : pageCount ? (
-            "Página sem texto."
-          ) : (
-            "Texto ainda não extraído."
-          )}
-        </pre>
+        {text ? (
+          <SelectableText articleId={article.id} page={page} fichaHref={fichaHref}>
+            {highlighted(text, marks)}
+          </SelectableText>
+        ) : (
+          <pre className="min-h-[75vh] overflow-auto rounded-lg border border-line bg-surface p-4 font-mono text-xs whitespace-pre-wrap">
+            {pageCount ? "Página sem texto." : "Texto ainda não extraído."}
+          </pre>
+        )}
       </div>
     </main>
   );

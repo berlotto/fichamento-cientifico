@@ -171,6 +171,26 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"quotes": {
+                  Row: {
+                    "article_id": string,"comment": string | null,"created_at": string,"id": string,"pdf_page": number,"printed_page": string | null,"text": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_id": string,"comment"?: string | null,"created_at"?: string,"id"?: string,"pdf_page": number,"printed_page"?: string | null,"text": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "article_id"?: string,"comment"?: string | null,"created_at"?: string,"id"?: string,"pdf_page"?: number,"printed_page"?: string | null,"text"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "quotes_article_id_fkey"
+      columns: ["article_id"]
+isOneToOne: false
+      referencedRelation: "articles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"user_limits": {
                   Row: {
                     "articles_per_day": number | null,"blocked": boolean,"extractions_per_day": number | null,"max_pdfs": number | null,"max_projects": number | null,"monthly_budget_usd": number | null,"note": string | null,"unlimited_budget": boolean,"updated_at": string,"user_id": string

@@ -41,6 +41,10 @@ const table: Table = {
       crit_weaknesses: null,
       crit_relevance: "cap. 2",
       notes: null,
+      quotes: [
+        { text: "a amostra foi pequena", pdf_page: 3, printed_page: "16", comment: "limitação" },
+        { text: "sem grupo controle", pdf_page: 1, printed_page: null, comment: null },
+      ],
     },
   ],
 };
@@ -63,8 +67,16 @@ describe("tableRows com análise crítica (spec 001)", () => {
     expect(header[i - 1]).toBe("Método: revisão");
     expect(row[i]).toBe("=amostra pequena");
 
-    expect(header.slice(-4)).toEqual(["Pontos fortes", "Pontos fracos", "Relação com minha pesquisa", "Notas livres"]);
-    expect(row.slice(-4)).toEqual(["claro", "", "cap. 2", ""]);
+    expect(header.slice(-5)).toEqual([
+      "Pontos fortes",
+      "Pontos fracos",
+      "Relação com minha pesquisa",
+      "Notas livres",
+      "Minhas citações",
+    ]);
+    expect(row.slice(-5, -1)).toEqual(["claro", "", "cap. 2", ""]);
+    // Spec 002: citações com página (impressa ou do PDF) e comentário.
+    expect(row.at(-1)).toBe("“a amostra foi pequena” (p. 16) — limitação\n\n“sem grupo controle” (PDF p. 1)");
   });
 
   it("no CSV, comentário que começa com = é neutralizado", () => {

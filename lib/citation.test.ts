@@ -14,6 +14,8 @@ import {
   parseAuthors,
   refText,
   shortCite,
+  inTextCite,
+  directQuote,
   vancouverPages,
   vancouverParts,
 } from "./citation";
@@ -28,10 +30,12 @@ describe("shortCite", () => {
   it("um, dois e três ou mais autores", () => {
     expect(shortCite({ authors: [{ family: "Carvalho" }], year: 2018 })).toBe("Carvalho, 2018");
     expect(shortCite({ authors: three.slice(1), year: 2020 })).toBe("Tavares; Ribeiro, 2020");
-    expect(shortCite({ authors: three, year: 2022 })).toBe("Moraes et al., 2022");
+    // NBR 10520:2023: até três autores, todos; et al. só com quatro ou mais.
+    expect(shortCite({ authors: three, year: 2022 })).toBe("Moraes; Tavares; Ribeiro, 2022");
+    expect(shortCite({ authors: [...three, { family: "Lima" }], year: 2022 })).toBe("Moraes et al., 2022");
   });
   it("maiúsculas para a citação entre parênteses", () => {
-    expect(shortCite({ authors: three, year: 2022 }, true)).toBe("MORAES et al., 2022");
+    expect(shortCite({ authors: three, year: 2022 }, true)).toBe("MORAES; TAVARES; RIBEIRO, 2022");
   });
   it("null sem autor ou sem ano", () => {
     expect(shortCite({ authors: [], year: 2022 })).toBeNull();
@@ -190,5 +194,30 @@ describe("displayTitle", () => {
     );
     expect(displayTitle({ title: "Título", subtitle: "Outra coisa" })).toBe("Título");
     expect(displayTitle({ title: null })).toBeNull();
+  });
+});
+
+describe("inTextCite e directQuote (spec 002)", () => {
+  const four = [...three, { family: "Lima" }];
+  it("ABNT: até três autores por extenso, quatro ou mais com et al.", () => {
+    expect(inTextCite({ authors: three.slice(0, 1), year: 2023 }, "45", "abnt")).toBe("(Moraes, 2023, p. 45)");
+    expect(inTextCite({ authors: three, year: 2023 }, "45", "abnt")).toBe("(Moraes; Tavares; Ribeiro, 2023, p. 45)");
+    expect(inTextCite({ authors: four, year: 2023 }, "45", "abnt")).toBe("(Moraes et al., 2023, p. 45)");
+  });
+  it("APA: & com dois autores, et al. com três ou mais", () => {
+    expect(inTextCite({ authors: three.slice(0, 2), year: 2023 }, "4", "apa")).toBe("(Moraes & Tavares, 2023, p. 4)");
+    expect(inTextCite({ authors: three, year: 2023 }, "4", "apa")).toBe("(Moraes et al., 2023, p. 4)");
+  });
+  it("Vancouver usa o número da referência; ABNT e APA pedem autor e ano", () => {
+    expect(inTextCite({ authors: [], year: null }, "7", "vancouver")).toBe("[n, p. 7]");
+    expect(inTextCite({ authors: [], year: 2023 }, "7", "abnt")).toBeNull();
+    expect(inTextCite({ authors: three, year: null }, "7", "apa")).toBeNull();
+  });
+  it("citação curta entre aspas; longa sem aspas, para bloco", () => {
+    expect(directQuote("texto curto", "(Moraes, 2023, p. 4)", "abnt")).toBe("“texto curto” (Moraes, 2023, p. 4)");
+    const long = "palavra ".repeat(40).trim();
+    expect(directQuote(long, "(Moraes, 2023, p. 4)", "abnt")).toBe(`${long} (Moraes, 2023, p. 4)`);
+    expect(directQuote(long, "(Moraes, 2023, p. 4)", "apa")).toBe(`${long} (Moraes, 2023, p. 4)`);
+    expect(directQuote("um dois três", "[n, p. 4]", "vancouver")).toBe("“um dois três” [n, p. 4]");
   });
 });
