@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BackIcon, DownloadIcon } from "@/components/icons";
+import { BackIcon } from "@/components/icons";
 import { ProjectLanguage } from "@/components/language-select";
 import { preferredCitationStyle, requireUser } from "@/lib/auth";
 import { fieldDefs } from "@/lib/fields";
 import { usd } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { ExportLinks } from "./export-links";
 import { CustomFields, DeleteProject, ReextractAll, RenameProject, VerificationSettings } from "./project-settings";
 
 const REF_LABEL = { abnt: "ABNT", apa: "APA", vancouver: "Vancouver" } as const;
@@ -99,13 +100,6 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
     ];
   });
 
-  const exportLink = (format: string, label: string) => (
-    <a href={`/api/export/${projectId}?format=${format}`} className="btn min-h-9 px-3 text-[13px]" download>
-      <DownloadIcon size={16} />
-      {label}
-    </a>
-  );
-
   return (
     <div
       data-pane={pane ? "detail" : undefined}
@@ -145,10 +139,7 @@ export async function ProjectOverview({ projectId, pane }: { projectId: string; 
           <Link href={`/matrix/${projectId}`} className="btn btn-primary min-h-9 px-3 text-[13px]">
             Abrir matriz
           </Link>
-          {exportLink("xlsx", "Excel")}
-          {exportLink("csv", "CSV")}
-          {exportLink("bib", "BibTeX")}
-          {exportLink(refStyle, `Referências ${REF_LABEL[refStyle]}`)}
+          <ExportLinks projectId={projectId} refStyle={refStyle} refLabel={REF_LABEL[refStyle]} />
         </div>
         <p className="m-0 text-[13px] text-muted">
           A matriz e as planilhas trazem um artigo por linha e um campo por coluna, com a página de cada trecho.

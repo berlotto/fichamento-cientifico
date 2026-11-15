@@ -35,19 +35,25 @@ export type TableArticle = CitableArticle & {
   language: string | null;
   status: string;
   fields: Record<string, TableField>;
+  /** Comentários do pesquisador por campo (spec 001). */
+  comments: Record<string, string>;
+  crit_strengths: string | null;
+  crit_weaknesses: string | null;
+  crit_relevance: string | null;
+  notes: string | null;
 };
 
 export type ProjectTable = { name: string; defs: FieldDef[]; articles: TableArticle[] };
 
 /** Projeto com artigos e campos (sem os rejeitados). RLS: só o que é do usuário. */
 export async function loadProjectTable(supabase: Client, projectId: string): Promise<ProjectTable | null> {
-  const [{ data: project }, { data: custom }, { data: articles }, { data: fields }] = await Promise.all([
+  const [{ data: project }, { data: custom }, { data: articles }, { data: fields }, { data: comments }] = await Promise.all([
     supabase.from("projects").select("name").eq("id", projectId).maybeSingle(),
     supabase.from("project_fields").select("key, label").eq("project_id", projectId).order("position"),
     supabase
       .from("articles")
       .select(
-        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, citekey, status, created_at",
+        "id, title, subtitle, original_filename, authors, year, venue, volume, issue, pages, doi, language, citekey, status, created_at, crit_strengths, crit_weaknesses, crit_relevance, notes",
       )
       .eq("project_id", projectId)
       .order("created_at"),
@@ -58,6 +64,10 @@ export async function loadProjectTable(supabase: Client, projectId: string): Pro
       )
       .eq("articles.project_id", projectId)
       .neq("status", "rejected"),
+    supabase
+      .from("field_comments")
+      .select("article_id, field_key, body, articles!inner(project_id)")
+      .eq("articles.project_id", projectId),
   ]);
   if (!project) return null;
 
@@ -68,7 +78,18 @@ export async function loadProjectTable(supabase: Client, projectId: string): Pro
     byArticle.set(f.article_id, rec);
   }
 
-  const list = (articles ?? []).map((a) => ({ ...a, fields: byArticle.get(a.id) ?? {} }));
+  const commentsByArticle = new Map<string, Record<string, string>>();
+  for (const c of comments ?? []) {
+    const rec = commentsByArticle.get(c.article_id) ?? {};
+    rec[c.field_key] = c.body;
+    commentsByArticle.set(c.article_id, rec);
+  }
+
+  const list = (articles ?? []).map((a) => ({
+    ...a,
+    fields: byArticle.get(a.id) ?? {},
+    comments: commentsByArticle.get(a.id) ?? {},
+  }));
   // Ordem de bibliografia: autor, ano.
   list.sort((x, y) => (shortCite(x) ?? x.title ?? "").localeCompare(shortCite(y) ?? y.title ?? "", "pt-BR"));
   return { name: project.name, defs: fieldDefs(custom ?? []), articles: list };
@@ -80,8 +101,20 @@ export const pageLabel = (f: TableField) =>
 
 const STATUS: Record<string, string> = { accepted: "revisado", pending: "a revisar" };
 
-/** Linhas da planilha: metadados + (valor, trecho, página, status) de cada campo. */
-export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] } {
+/** Colunas da análise crítica do artigo, na ordem da ficha. */
+export const CRITIQUE_COLUMNS = [
+  ["crit_strengths", "Pontos fortes"],
+  ["crit_weaknesses", "Pontos fracos"],
+  ["crit_relevance", "Relação com minha pesquisa"],
+  ["notes", "Notas livres"],
+] as const;
+
+/**
+ * Linhas da planilha: metadados + (valor, trecho, página, status) de cada campo.
+ * Com `critique`, cada campo ganha a coluna "meu comentário" e o fim da linha
+ * traz a análise crítica do artigo (spec 001).
+ */
+export function tableRows(t: ProjectTable, opts: { critique?: boolean } = {}): { rows: Cell[][]; widths: number[] } {
   const header: Cell[] = [
     "Citação",
     "Título",
@@ -99,6 +132,16 @@ export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] }
   for (const d of t.defs) {
     header.push(d.label, `${d.label}: trecho original`, `${d.label}: trecho traduzido`, `${d.label}: página`, `${d.label}: revisão`);
     widths.push(60, 50, 50, 10, 12);
+    if (opts.critique) {
+      header.push(`${d.label}: meu comentário`);
+      widths.push(50);
+    }
+  }
+  if (opts.critique) {
+    for (const [, label] of CRITIQUE_COLUMNS) {
+      header.push(label);
+      widths.push(50);
+    }
   }
 
   const rows: Cell[][] = [header];
@@ -125,7 +168,9 @@ export function tableRows(t: ProjectTable): { rows: Cell[][]; widths: number[] }
         f ? pageLabel(f) : "",
         f ? (STATUS[f.status] ?? f.status) : "",
       );
+      if (opts.critique) row.push(a.comments[d.key] ?? "");
     }
+    if (opts.critique) for (const [col] of CRITIQUE_COLUMNS) row.push(a[col] ?? "");
     rows.push(row);
   }
   return { rows, widths };

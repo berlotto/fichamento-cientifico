@@ -9,21 +9,52 @@ import { locateQuote, numbersInQuote, resolvePage } from "@/lib/pipeline/verify"
 import { removeUnreferencedPdfs } from "@/lib/storage-cleanup";
 import { createClient } from "@/lib/supabase/server";
 
-const MAX_NOTES = 20_000;
 const MAX_VALUE = 20_000;
 const MAX_QUOTE = 5_000;
-
-/** Grava "Minhas notas". RLS garante que o artigo é do usuário. */
-export async function saveNotes(articleId: string, notes: string): Promise<{ ok: boolean }> {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("articles")
-    .update({ notes: notes.slice(0, MAX_NOTES) || null })
-    .eq("id", articleId);
-  return { ok: !error };
-}
+const MAX_COMMENT = 5_000;
 
 export type ActionResult = { ok: boolean; error?: string };
+
+/** Partes da análise crítica do artigo (spec 001) e o limite de cada uma no banco. */
+const CRITIQUE_COLUMNS = {
+  strengths: { column: "crit_strengths", max: 10_000 },
+  weaknesses: { column: "crit_weaknesses", max: 10_000 },
+  relevance: { column: "crit_relevance", max: 10_000 },
+  notes: { column: "notes", max: 20_000 },
+} as const;
+export type CritiquePart = keyof typeof CRITIQUE_COLUMNS;
+
+/** Grava uma parte da análise crítica. RLS garante que o artigo é do usuário. */
+export async function saveCritique(articleId: string, part: CritiquePart, text: string): Promise<ActionResult> {
+  await requireUser();
+  const spec = CRITIQUE_COLUMNS[part];
+  if (!spec) return { ok: false, error: "Parte inválida." };
+  const value = text.trim() ? text.slice(0, spec.max) : null;
+  type Column = (typeof CRITIQUE_COLUMNS)[CritiquePart]["column"];
+  const patch = { [spec.column]: value } as { [K in Column]?: string | null };
+  const supabase = await createClient();
+  const { error } = await supabase.from("articles").update(patch).eq("id", articleId);
+  return error ? { ok: false, error: "Não foi possível salvar." } : { ok: true };
+}
+
+/**
+ * Comentário do pesquisador sobre um campo da ficha. Texto vazio apaga o
+ * comentário. Fica em tabela própria: a reextração não mexe nele.
+ */
+export async function saveFieldComment(articleId: string, key: string, text: string): Promise<ActionResult> {
+  await requireUser();
+  if (!/^[a-z][a-z0-9_]{1,39}$/.test(key)) return { ok: false, error: "Campo inválido." };
+  const body = text.trim().slice(0, MAX_COMMENT);
+  const supabase = await createClient();
+  const { error } = body
+    ? await supabase
+        .from("field_comments")
+        .upsert({ article_id: articleId, field_key: key, body, updated_at: new Date().toISOString() })
+    : await supabase.from("field_comments").delete().eq("article_id", articleId).eq("field_key", key);
+  if (error) return { ok: false, error: "Não foi possível salvar o comentário." };
+  revalidatePath("/projects", "layout");
+  return { ok: true };
+}
 
 /** Aceitar, rejeitar ou voltar a pendente um campo da ficha. */
 export async function reviewField(
