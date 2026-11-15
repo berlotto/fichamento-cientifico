@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Turnstile } from "@/components/turnstile";
 import { requestPasswordReset, signIn, signUp, type AuthState } from "./actions";
 
 type Mode = "signin" | "signup" | "reset";
@@ -79,6 +80,8 @@ export function LoginForm() {
             />
           </div>
         )}
+
+        <Turnstile resetKey={state} />
 
         <p aria-live="polite" className="m-0 text-sm empty:hidden">
           {state.error && <span className="text-warn">{state.error}</span>}
